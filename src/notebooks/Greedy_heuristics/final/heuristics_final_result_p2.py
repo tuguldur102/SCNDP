@@ -1,21 +1,33 @@
-import networkx as nx
-import numpy as np
+# === Standard Library ===
+import math
+import random
 import time
-import pandas as pd
-import matplotlib.pyplot as plt
-from scipy.optimize import linprog
-from tqdm import tqdm
-from itertools import combinations
-from collections import defaultdict, deque
-import math, random
 import heapq
-import scipy.sparse as sp
-from collections import deque
-from joblib import Parallel, delayed
-from numba import njit
-from typing import Tuple, Dict, List, Set, Sequence, Union
 import itertools
-from typing import Any
+from collections import defaultdict, deque
+from itertools import combinations
+from typing import Any, Tuple, Dict, List, Set, Sequence, Union
+
+# === Third-Party Libraries ===
+
+# --- Scientific Computing ---
+import numpy as np
+import pandas as pd
+import scipy.sparse as sp
+from scipy.optimize import linprog
+
+# --- Plotting ---
+import matplotlib.pyplot as plt
+
+# --- Parallel Processing ---
+from joblib import Parallel, delayed
+from tqdm import tqdm
+
+# --- Graph Processing ---
+import networkx as nx
+
+# --- JIT Compilation ---
+from numba import njit, prange
 
 def sigma_exact(
     G: nx.Graph,
@@ -98,13 +110,7 @@ def component_sampling_epc_mc(G, S, num_samples=10_000,
 
   return (n_rem * C2) / (2 * num_samples)
 
-import math
-import heapq
-from typing import Tuple, Dict, List, Set
 
-import networkx as nx
-import numpy as np
-from numba import njit, prange
 
 def nx_to_csr(G: nx.Graph) -> Tuple[List[int], Dict[int, int], np.ndarray, np.ndarray, np.ndarray]:
      """Convert an undirected NetworkX graph (edge attr `'p'`) to CSR arrays."""
@@ -508,9 +514,10 @@ N_SAMPLE = 100_000
 REGA_R = 5
 REGA_ALPHA = 0.3
 
-K = 3
-NODES = 20
+K = 10
+NODES = 100
 
+# nodes 100, edges 200
 graph_models = {
   'ER': nx.erdos_renyi_graph(NODES, 0.0443, seed=SEED),
   'BA': nx.barabasi_albert_graph(NODES, 2,seed=SEED),
@@ -519,7 +526,7 @@ graph_models = {
 
 records = []
 for name, G in tqdm(graph_models.items(), desc="Processing models", total=len(graph_models)):
-  for p in tqdm(np.arange(0.1, 1.1, 0.1), desc="Processing", total=int(1.1/0.1)):
+  for p in tqdm(np.arange(0.0, 1.1, 0.1), desc="Processing", total=int(1.1/0.1)):
 
     def fresh_graph():
       H = G.copy()
@@ -527,62 +534,62 @@ for name, G in tqdm(graph_models.items(), desc="Processing models", total=len(gr
         H[u][v]['p'] = p
       return H
 
-    # Heuristics 1: Degree-Based Centrality
-    t0 = time.perf_counter()
-    G_degree  = remove_k_degree_centrality(fresh_graph(), K)
-    t_degree  = time.perf_counter() - t0
-
-    epc_degree = component_sampling_epc_mc(G_degree, set(), N_SAMPLE)
-
-    # Heuristics 2: Betweenness
-    t0 = time.perf_counter()
-    G_between  = remove_k_betweenness(fresh_graph(), K)
-    t_between  = time.perf_counter() - t0
-
-    epc_between = component_sampling_epc_mc(G_between, set(), N_SAMPLE)
-
-    # Heuristics 3: PageRank node
-    t0 = time.perf_counter()
-    G_pagerank  = remove_k_pagerank_nodes(fresh_graph(), K)
-    t_pagerank  = time.perf_counter() - t0
-
-    epc_pagerank = component_sampling_epc_mc(G_pagerank, set(), N_SAMPLE)
-
-    # Heuristics 4: Greedy from Empty Set + EPC (optimized) 
-    t0 = time.perf_counter()
-    
-    G_greedy_es, sigma_delta  = optimise_epc(
-      G=fresh_graph(), 
-      K=K,
-      num_samples=N_SAMPLE,
-      return_trace=True
-      )
-    t_greedy_es  = time.perf_counter() - t0
-
-    # epc_greedy_es = component_sampling_epc_mc(G_greedy_es, set(), N_SAMPLE)
-    epc_greedy_es = sigma_delta[-1]
-
-
-    # Heuristics 4: Greedy from Empty Set + EPC (non-optimized) 
+    # # Heuristics 1: Degree-Based Centrality
     # t0 = time.perf_counter()
-    # G_deg  = greedy_cndp_epc(fresh_graph(), K)
+    # G_degree  = remove_k_degree_centrality(fresh_graph(), K)
+    # t_degree  = time.perf_counter() - t0
+
+    # epc_degree = component_sampling_epc_mc(G_degree, set(), N_SAMPLE)
+
+    # # Heuristics 2: Betweenness
+    # t0 = time.perf_counter()
+    # G_between  = remove_k_betweenness(fresh_graph(), K)
+    # t_between  = time.perf_counter() - t0
+
+    # epc_between = component_sampling_epc_mc(G_between, set(), N_SAMPLE)
+
+    # # Heuristics 3: PageRank node
+    # t0 = time.perf_counter()
+    # G_pagerank  = remove_k_pagerank_nodes(fresh_graph(), K)
+    # t_pagerank  = time.perf_counter() - t0
+
+    # epc_pagerank = component_sampling_epc_mc(G_pagerank, set(), N_SAMPLE)
+
+    # # Heuristics 4: Greedy from Empty Set + EPC (optimized) 
+    # t0 = time.perf_counter()
+    
+    # G_greedy_es, sigma_delta  = optimise_epc(
+    #   G=fresh_graph(), 
+    #   K=K,
+    #   num_samples=N_SAMPLE,
+    #   return_trace=True
+    #   )
     # t_greedy_es  = time.perf_counter() - t0
 
-    # epc_deg = component_sampling_epc_mc(G_deg, set(), N_SAMPLE)
+    # # epc_greedy_es = component_sampling_epc_mc(G_greedy_es, set(), N_SAMPLE)
+    # epc_greedy_es = sigma_delta[-1]
+
+
+    # # Heuristics 4: Greedy from Empty Set + EPC (non-optimized) 
+    # # t0 = time.perf_counter()
+    # # G_deg  = greedy_cndp_epc(fresh_graph(), K)
+    # # t_greedy_es  = time.perf_counter() - t0
+
+    # # epc_deg = component_sampling_epc_mc(G_deg, set(), N_SAMPLE)
 
 
 
-    # Heuristics 5: Greedy from MIS + EPC (Prof. Ashwin)
-    t0 = time.perf_counter()
-    S_greedy_mis, sigma_delta_mis  = greedy_epc_mis(
-      G=fresh_graph(), 
-      k=K, 
-      num_samples=N_SAMPLE
-      )
-    t_greedy_mis  = time.perf_counter() - t0
+    # # Heuristics 5: Greedy from MIS + EPC (Prof. Ashwin)
+    # t0 = time.perf_counter()
+    # S_greedy_mis, sigma_delta_mis  = greedy_epc_mis(
+    #   G=fresh_graph(), 
+    #   k=K, 
+    #   num_samples=N_SAMPLE
+    #   )
+    # t_greedy_mis  = time.perf_counter() - t0
 
-    epc_greedy_mis = component_sampling_epc_mc(
-      fresh_graph(), S_greedy_mis, 100_000)
+    # epc_greedy_mis = component_sampling_epc_mc(
+    #   fresh_graph(), S_greedy_mis, 100_000)
 
     # Heuristics 6: REGA
     t0 = time.perf_counter()
@@ -597,13 +604,14 @@ for name, G in tqdm(graph_models.items(), desc="Processing models", total=len(gr
     epc_rega = component_sampling_epc_mc(
       fresh_graph(), S_rega, N_SAMPLE)
 
+    print(f"\n{name} - {p} REGA: {epc_rega}\n")
 
     for algo, t, epc in [
-      ('Degree-based', t_degree, epc_degree),
-      ('Betweenness', t_between, epc_between),
-      ('PageRank', t_pagerank, epc_pagerank),
-      ('Greedy_ES', t_greedy_es, epc_greedy_es),
-      ('Greedy_MIS', t_greedy_mis, epc_greedy_mis),
+      # ('Degree-based', t_degree, epc_degree),
+      # ('Betweenness', t_between, epc_between),
+      # ('PageRank', t_pagerank, epc_pagerank),
+      # ('Greedy_ES', t_greedy_es, epc_greedy_es),
+      # ('Greedy_MIS', t_greedy_mis, epc_greedy_mis),
       ('REGA', t_rega, epc_rega),      
     ]:
       
@@ -616,4 +624,4 @@ for name, G in tqdm(graph_models.items(), desc="Processing models", total=len(gr
       })
 
 df = pd.DataFrame(records)
-df.to_csv(f"Result_heuristics_all_{NODES}_{K}_.csv", index=False)
+df.to_csv(f"Result_heuristics_all_{NODES}_{K}_REGA.csv", index=False)
