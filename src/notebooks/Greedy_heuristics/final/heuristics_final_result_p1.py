@@ -524,8 +524,8 @@ graph_models = {
   'SW': nx.watts_strogatz_graph(NODES, 4, 0.3, seed=SEED)
 }
 
-records = []
 for name, G in tqdm(graph_models.items(), desc="Processing models", total=len(graph_models)):
+  records = []
   for p in tqdm(np.arange(0.0, 1.1, 0.1), desc="Processing", total=int(1.1/0.1)):
 
     def fresh_graph():
@@ -625,5 +625,5 @@ for name, G in tqdm(graph_models.items(), desc="Processing models", total=len(gr
         'epc': epc,
       })
 
-df = pd.DataFrame(records)
-df.to_csv(f"Result_heuristics_all_{NODES}_{K}_first_5.csv", index=False)
+  df = pd.DataFrame(records)
+  df.to_csv(f"Result_heuristics_all_{name}_{NODES}_{K}_first_5.csv", index=False)
