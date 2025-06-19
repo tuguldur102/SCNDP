@@ -519,7 +519,7 @@ NODES = 100
 
 # nodes 100, edges 200
 graph_models = {
-  'ER': nx.erdos_renyi_graph(NODES, 0.0443, seed=SEED),
+  # 'ER': nx.erdos_renyi_graph(NODES, 0.0443, seed=SEED),
   'BA': nx.barabasi_albert_graph(NODES, 2,seed=SEED),
   'SW': nx.watts_strogatz_graph(NODES, 4, 0.3, seed=SEED)
 }
