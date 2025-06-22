@@ -7,6 +7,7 @@ import itertools
 from collections import defaultdict, deque
 from itertools import combinations
 from typing import Any, Tuple, Dict, List, Set, Sequence, Union
+
 # === Third-Party Libraries ===
 
 # --- Scientific Computing ---
@@ -28,7 +29,6 @@ import networkx as nx
 # --- JIT Compilation ---
 from numba import njit, prange
 
-### Component Sampling EPC
 def sigma_exact(
     G: nx.Graph,
     S: set,
@@ -157,7 +157,7 @@ def _bfs_component_size(start: int,
             w = indices[eid]
             if deleted[w]:
                 continue
-            if np.random.random() >= probs[eid]:  # edge absent
+            if np.random.random() >= probs[eid]:
                 continue
             if visited[w]:
                 continue
@@ -168,7 +168,7 @@ def _bfs_component_size(start: int,
     return size - 1
 
 @njit(parallel=True)
-def epc_optimized(indptr: np.ndarray,
+def epc_mc(indptr: np.ndarray,
             indices: np.ndarray,
             probs: np.ndarray,
             deleted: np.ndarray,
@@ -185,6 +185,24 @@ def epc_optimized(indptr: np.ndarray,
         acc += _bfs_component_size(u, indptr, indices, probs, deleted)
 
     return (m * acc) / (2.0 * num_samples)
+
+def epc_mc_deleted(
+  G: nx.Graph,
+  S: set,
+  num_samples: int = 100_000,
+) -> float:
+  # build csr once
+  nodes, idx_of, indptr, indices, probs = nx_to_csr(G)
+  n = len(nodes)
+
+  # turn python set S into a mask (node-IDs to delete)
+  deleted = np.zeros(n, dtype=np.bool_)
+  for u in S:
+    deleted[idx_of[u]] = True
+
+  epc = epc_mc(indptr, indices, probs, deleted, num_samples)
+
+  return epc
 
 def greedy_cndp_epc_celf(
     G: nx.Graph,
@@ -256,6 +274,96 @@ def optimise_epc(
  ) -> Union[Set[int], Tuple[Set[int], List[float]]]:
      csr = nx_to_csr(G)
      return greedy_cndp_epc_celf(G, K, num_samples=num_samples, reuse_csr=csr, return_trace=return_trace)
+
+def local_search_swap(
+  # G: nx.Graph,
+  S: Set[int],
+  *,
+  csr: Tuple[List[int], Dict[int,int], np.ndarray, np.ndarray, np.ndarray],
+  num_samples: int = 100_000,
+  max_iter: int = 5
+) -> Set[int]:
+  """
+  Given initial delete-set S, try 1-for-1 swaps to reduce EPC.
+  csr = (nodes, idx_of, indptr, indices, probs).
+  """
+  nodes, idx_of, indptr, indices, probs = csr
+  n = len(nodes)
+
+  # build boolean mask from S
+  deleted = np.zeros(n, dtype=np.bool_)
+  for u in S:
+    deleted[idx_of[u]] = True
+
+  # current EPC
+  curr = epc_mc(indptr, indices, probs, deleted, num_samples)
+
+  for it in range(max_iter):
+    best_delta = 0.0
+    best_swap = None
+
+    # try swapping each i in S with each j not in S
+    for i in list(S):
+      ii = idx_of[i]
+      # undelete i
+      deleted[ii] = False
+
+      for j in nodes:
+        jj = idx_of[j]
+        if deleted[jj]:
+          continue
+        # delete j
+        deleted[jj] = True
+
+        sigma = epc_mc(indptr, indices, probs, deleted, num_samples)
+        delta = curr - sigma
+        if delta > best_delta:
+          best_delta = delta
+          best_swap = (ii, jj, sigma)
+
+        # revert j
+        deleted[jj] = False
+
+      # revert i
+
+      deleted[ii] = True
+
+    if best_swap is None:
+      break   
+
+    # commit the best swap
+    ii, jj, new_sigma = best_swap
+    deleted[ii] = False
+    deleted[jj] = True
+    curr = new_sigma
+
+    # update S
+    S.remove(nodes[ii])
+    S.add(nodes[jj])
+
+  return S
+
+def greedy_es_local_opt(
+    G, K,
+    num_samples=100_000, local_iter=5, return_trace=True
+):
+  t0 = time.perf_counter()
+  G_greedy_es, sigma_delta = optimise_epc(
+    G=G, K=K, num_samples=num_samples, return_trace=return_trace)
+  t_greedy_es = time.perf_counter() - t0
+
+  # epc_greedy_es = component_sampling_epc_mc(G_greedy_es, set(), N_SAMPLE)
+  epc_greedy_es = sigma_delta[-1]
+
+  csr = nx_to_csr(G)
+
+  S_opt = local_search_swap(
+    G_greedy_es, csr=csr, 
+    num_samples=num_samples, max_iter=local_iter)
+
+  epc_final = epc_mc_deleted(G, S_opt, num_samples)
+
+  return t_greedy_es, epc_greedy_es, epc_final
 
 def greedy_cndp_epc(
     G: nx.Graph,
@@ -504,21 +612,214 @@ def greedy_epc_mis(G, k, num_samples):
   D = set(G.nodes()) - R
   return D, sigma_delta
 
+@njit
+def greedy_epc_mis_numba(
+    indptr: np.ndarray,
+    indices: np.ndarray,
+    probs: np.ndarray,
+    deleted: np.ndarray,
+    n: int,
+    k: int,
+    num_samples: int,
+) -> Tuple[np.ndarray, np.ndarray, int]:
+    target_survivors = n - k
+    survivors = n - np.sum(deleted)
+
+    # how many flips we'll actually do?
+    flips_needed = target_survivors - survivors
+    if flips_needed < 0:
+        flips_needed = 0
+
+    # one slot for the initial EPC + one per flip
+    max_steps = 1 + flips_needed
+    trace_np = np.empty(max_steps, dtype=np.float64)
+
+    # record initial EPC
+    step = 0
+    curr_epc = epc_mc(indptr, indices, probs, deleted, num_samples)
+    trace_np[step] = curr_epc
+    step += 1
+
+    # now do exactly flips_needed iterations
+    while survivors < target_survivors:
+        best_sigma = 1e18
+        best_j = -1
+
+        for j in range(n):
+            if deleted[j]:
+                deleted[j] = False
+                sigma = epc_mc(indptr, indices, probs, deleted, num_samples)
+                deleted[j] = True
+                if sigma < best_sigma:
+                    best_sigma = sigma
+                    best_j = j
+
+        deleted[best_j] = False
+        survivors += 1
+        curr_epc = best_sigma
+
+        trace_np[step] = curr_epc
+        step += 1
+    return deleted, trace_np, step
+
+def greedy_mis_optimized(
+  G: nx.Graph,
+  k: int,
+  *,
+  num_samples: int = 100_000,
+  return_trace: bool = False,
+) -> Union[Set[int], Tuple[Set[int], list]]:
+    
+    # 1. CSR conversion
+    nodes, idx_of, indptr, indices, probs = nx_to_csr(G)
+    n = len(nodes)
+
+    # 2. Build initial MIS mask
+    # MIS = nx.maximal_independent_set(G)
+    # deleted = np.ones(n, dtype=np.bool_)
+    # for u in MIS:
+    #     deleted[idx_of[u]] = False
+
+    # best_deleted: np.ndarray = None
+    # best_sigma = float("inf")
+
+    # for i in range(mis_rounds):
+    #     MIS = nx.maximal_independent_set(G)
+
+    #     # deleted[i]==True means node i is removed
+    #     deleted = np.ones(n, dtype=np.bool_)
+        
+    #     for u in MIS:
+    #         deleted[idx_of[u]] = False
+        
+    #     curr_sigma = epc_mc(indptr, indices, probs, deleted, num_samples)
+
+    #     # print(f"{i}-th rount sigma: {curr_sigma}")
+
+    #     if curr_sigma < best_sigma:
+    #         best_sigma = curr_sigma
+    #         best_deleted = deleted.copy()
+
+    MIS = nx.algorithms.approximation.maximum_independent_set(G)
+
+    deleted = np.ones(n, dtype=np.bool_)
+    for u in MIS:
+        deleted[idx_of[u]] = False
+
+    best_deleted = deleted.copy()
+
+    # 3. Call the fast Numba core
+    final_deleted, trace_np, cnt = greedy_epc_mis_numba(
+        indptr, indices, probs, 
+        best_deleted, 
+        n, k, num_samples
+    )
+
+    # 4. Slice out only the filled portion of the trace
+    trace = trace_np[:cnt].tolist()
+
+    # 5. Map mask back to node-IDs
+    D = {nodes[i] for i in range(n) if final_deleted[i]}
+
+    return (D, trace) if return_trace else D
+
+def greedy_mis_local_search(
+    G: nx.Graph,
+    k: int,
+    *,
+    num_samples: int = 100_000,
+    max_local_iters: int = 5
+) -> Set[int]:
+    # 1) build CSR
+    nodes, idx_of, indptr, indices, probs = nx_to_csr(G)
+    n = len(nodes)
+
+    # 2) get a starting D via your Numba‐greedy MIS
+    S = greedy_mis_optimized(
+        G, k, 
+        num_samples=num_samples, mis_rounds=100,
+        return_trace=False)
+    
+    # 3) make the Boolean mask
+    deleted = np.zeros(n, dtype=np.bool_)
+    for u in S:
+        deleted[idx_of[u]] = True
+
+    # 4) run the local search
+    final_deleted = local_search_swap(
+        indptr, indices, probs, 
+        deleted, n, num_samples, max_local_iters
+    )
+
+    # 5) map back to node IDs
+    return {nodes[i] for i in range(n) if final_deleted[i]}
+
+def robust_greedy_mis_optimized(
+  G, k, 
+  num_samples=100_000, trials=10, 
+  max_iter=10):
+  # best_D, best_epc = None, float('inf')
+  csr = nx_to_csr(G)
+  epcs_initial = []
+  epcs = []
+  time_initial = []
+
+  for _ in tqdm(range(trials), desc="Processing MIS-greedy", total=trials):
+    
+    t0 = time.perf_counter()
+
+    S = greedy_mis_optimized(
+      G, k,
+      num_samples=num_samples,
+      return_trace=False)
+    
+    epc_initial = epc_mc_deleted(G, S, num_samples)
+    epcs_initial.append(epc_initial)
+    t_greedy_mis_initial = time.perf_counter() - t0
+
+    time_initial.append(t_greedy_mis_initial)
+
+    S_opt = local_search_swap(
+      S, csr=csr, num_samples=num_samples, max_iter=max_iter)
+    
+    epc_final = epc_mc_deleted(G, S_opt, num_samples)
+    epcs.append(epc_final)
+
+    # epc_final = component_sampling_epc_mc(G, S_opt, num_samples)
+    # epcs.append(epc_final)
+
+  mean_epc_initial = sum(epcs_initial) / trials
+  std_epc_initial = (sum((e - mean_epc_initial)**2 for e in epcs_initial) / trials)**0.5
+
+  mean_epc = sum(epcs) / trials
+  std_epc = (sum((e - mean_epc)**2 for e in epcs) / trials)**0.5
+
+  time_initial_final = sum(time_initial) / trials
+
+  return time_initial_final, mean_epc_initial, std_epc_initial, mean_epc, std_epc
+ 
 SEED = 42
 N_SAMPLE = 100_000
+LOCAL_ITER = 5
 
 REGA_R = 5
 REGA_ALPHA = 0.3
 
 K = 10
 NODES = 100
-
-# nodes 100, edges 200
+# nodes 100, edges 200 (Sparse Graphs)
 graph_models = {
   'ER': nx.erdos_renyi_graph(NODES, 0.0443, seed=SEED),
   'BA': nx.barabasi_albert_graph(NODES, 2,seed=SEED),
   'SW': nx.watts_strogatz_graph(NODES, 4, 0.3, seed=SEED)
 }
+
+# nodes 100, p = 0.7 (Dense Graphs)
+# graph_models_dense = {
+#   'ER': nx.erdos_renyi_graph(NODES, 0.7, seed=SEED),
+#   'BA': nx.barabasi_albert_graph(NODES, 10,seed=SEED),
+#   'SW': nx.watts_strogatz_graph(NODES, 40, 0.3, seed=SEED)
+# }
 
 for name, G in tqdm(graph_models.items(), desc="Processing models", total=len(graph_models)):
   records = []
@@ -530,90 +831,30 @@ for name, G in tqdm(graph_models.items(), desc="Processing models", total=len(gr
         H[u][v]['p'] = p
       return H
 
-    # Heuristics 1: Degree-Based Centrality
-    # t0 = time.perf_counter()
-    # G_degree  = remove_k_degree_centrality(fresh_graph(), K)
-    # t_degree  = time.perf_counter() - t0
-
-    # epc_degree = component_sampling_epc_mc(G_degree, set(), N_SAMPLE)
-
-    # # Heuristics 2: Betweenness
-    # t0 = time.perf_counter()
-    # G_between  = remove_k_betweenness(fresh_graph(), K)
-    # t_between  = time.perf_counter() - t0
-
-    # epc_between = component_sampling_epc_mc(G_between, set(), N_SAMPLE)
-
-    # # Heuristics 3: PageRank node
-    # t0 = time.perf_counter()
-    # G_pagerank  = remove_k_pagerank_nodes(fresh_graph(), K)
-    # t_pagerank  = time.perf_counter() - t0
-
-    # epc_pagerank = component_sampling_epc_mc(G_pagerank, set(), N_SAMPLE)
-
-    # Heuristics 4: Greedy from Empty Set + EPC (optimized) 
     t0 = time.perf_counter()
+
+    t_greedy_es_initial, initial_epc_greedy_es, final_epc_greedy_es = greedy_es_local_opt(
+      fresh_graph(), K, num_samples=N_SAMPLE,
+      local_iter=LOCAL_ITER, return_trace=True)
     
-    G_greedy_es, sigma_delta  = optimise_epc(
-      G=fresh_graph(), 
-      K=K,
-      num_samples=N_SAMPLE,
-      return_trace=True
-      )
-    t_greedy_es  = time.perf_counter() - t0
+    t_greedy_es_final = time.perf_counter() - t0
 
-    # epc_greedy_es = component_sampling_epc_mc(G_greedy_es, set(), N_SAMPLE)
-    epc_greedy_es = sigma_delta[-1]
-
-
-    # Heuristics 4: Greedy from Empty Set + EPC (non-optimized) 
     t0 = time.perf_counter()
-    G_deg, sigma_delta1  = greedy_cndp_epc(fresh_graph(), K)
-    t_greedy_es1  = time.perf_counter() - t0
 
-    # epc_greedy_es_non = component_sampling_epc_mc(
-    #    fresh_graph(), G_deg, N_SAMPLE)
+    t_greedy_mis_initial, mis_epc_initial, mis_epc_init_std, mis_epc_final, mis_epc_final_std = robust_greedy_mis_optimized(
+      fresh_graph(), K, num_samples=N_SAMPLE,
+      trials=10, max_iter=LOCAL_ITER)
     
-    epc_greedy_es_non = sigma_delta1[-1]
+    t_greedy_mis_final = time.perf_counter() - t0
 
+    print(f"\nGreedy ES init: {initial_epc_greedy_es} vs {final_epc_greedy_es}\n")
+    print(f"\nGreedy MIS init: {mis_epc_initial} vs {mis_epc_final}\n")
 
-
-    # Heuristics 5: Greedy from MIS + EPC (Prof. Ashwin)
-    # t0 = time.perf_counter()
-    # S_greedy_mis, sigma_delta_mis  = greedy_epc_mis(
-    #   G=fresh_graph(), 
-    #   k=K, 
-    #   num_samples=N_SAMPLE
-    #   )
-    # t_greedy_mis  = time.perf_counter() - t0
-
-    # epc_greedy_mis = component_sampling_epc_mc(
-    #   fresh_graph(), S_greedy_mis, 100_000)
-
-    # # Heuristics 6: REGA
-    # t0 = time.perf_counter()
-    # S_rega  = REGA_with_LP(
-    #   G=fresh_graph(), 
-    #   k=K,
-    #   R=REGA_R,
-    #   alpha=REGA_ALPHA
-    #   )
-    # t_rega  = time.perf_counter() - t0
-
-    # epc_rega = component_sampling_epc_mc(
-    #   fresh_graph(), S_rega, N_SAMPLE)
-
-    # print(f"\n{name} - {p} Betweenness: {epc_between}\n")
-    print(f"\n{name} - {p} Greedy_ES: {epc_greedy_es}\n")
-    print(f"\n{name} - {p} Greedy_ES_non: {epc_greedy_es_non}\n")
-
-    for algo, t, epc in [
-      # ('Degree-based', t_degree, epc_degree),
-      # ('Betweenness', t_between, epc_between),
-      # ('PageRank', t_pagerank, epc_pagerank),
-      ('Greedy_ES_opt', t_greedy_es, epc_greedy_es),
-      ('Greedy_ES_non_opt', t_greedy_es1, epc_greedy_es_non),
-      # ('REGA', t_rega, epc_rega),      
+    for algo, t, epc, std in [
+      ('Greedy_ES_initial', t_greedy_es_initial, initial_epc_greedy_es, 0.0),
+      ('Greedy_ES_final', t_greedy_es_final, final_epc_greedy_es, 0.0),
+      ('Greedy_MIS_initial', t_greedy_mis_initial, mis_epc_initial, mis_epc_init_std),
+      ('Greedy_MIS_final', t_greedy_mis_final, mis_epc_final, mis_epc_final_std),
     ]:
       
       records.append({
@@ -622,7 +863,8 @@ for name, G in tqdm(graph_models.items(), desc="Processing models", total=len(gr
         'algo': algo,
         'time': t,
         'epc': epc,
+        'epc_std': std,
       })
 
-  df = pd.DataFrame(records)
-  df.to_csv(f"Result_heuristics_all_{name}_{NODES}_{K}_ES_opt_vs_non.csv", index=False)
+    df = pd.DataFrame(records)
+    df.to_csv(f"Result_heuristics_all_{name}_{NODES}_{K}_greedies_opt.csv", index=False)
