@@ -805,36 +805,47 @@ LOCAL_ITER = 5
 REGA_R = 5
 REGA_ALPHA = 0.3
 
-K = 5
-NODES = 50
+K = 10
+NODES = 100
 # nodes 100, edges 200 (Sparse Graphs)
-# graph_models = {
-#   'ER': nx.erdos_renyi_graph(NODES, 0.0443, seed=SEED),
-#   'BA': nx.barabasi_albert_graph(NODES, 2,seed=SEED),
-#   'SW': nx.watts_strogatz_graph(NODES, 4, 0.3, seed=SEED)
-# }
-
-# nodes 50, p = 0.5 (Dense Graphs) 2500 edges
-graph_models_dense = {
-  'ER': nx.erdos_renyi_graph(NODES, 0.5025, seed=SEED),
-  'BA': nx.barabasi_albert_graph(NODES,25,seed=SEED),
-  'SW': nx.watts_strogatz_graph(NODES, 25, 0.3, seed=SEED)
+graph_models = {
+  'ER': nx.erdos_renyi_graph(NODES, 0.0443, seed=SEED),
+  'BA': nx.barabasi_albert_graph(NODES, 2,seed=SEED),
+  'SW': nx.watts_strogatz_graph(NODES, 4, 0.3, seed=SEED)
 }
 
-for name, G in tqdm(graph_models_dense.items(), desc="Processing models", total=len(graph_models_dense)):
-  records = []
-  for p in tqdm(np.arange(0.0, 1.2, 0.2), desc="Processing", total=int(1.2/0.2)):
+# nodes 50, p = 0.5 (Dense Graphs) 2500 edges
+# graph_models_dense = {
+#   'ER': nx.erdos_renyi_graph(NODES, 0.5025, seed=SEED),
+#   'BA': nx.barabasi_albert_graph(NODES,25,seed=SEED),
+#   'SW': nx.watts_strogatz_graph(NODES, 25, 0.3, seed=SEED)
+# }
 
-    def fresh_graph():
-      H = G.copy()
-      for u, v in H.edges():
-        H[u][v]['p'] = p
-      return H
+dist_funcs = {
+  'uniform': lambda: np.random.uniform(0.0, 1.0),
+  'normal': lambda: np.clip(np.random.normal(0.5, 0.2), 0, 1),
+  'beta': lambda: np.random.beta(2, 5),
+}
+
+for name_model, G in tqdm(
+  graph_models.items(), 
+  desc="Processing models", 
+  total=len(graph_models)):
+  records = []
+
+  for name_dist, dist_func in tqdm(
+    dist_funcs,
+    desc="Processing",
+    total=len(dist_funcs)):
+
+    H0 = G.copy()
+    for u, v in H0.edges():
+      H0[u][v]['p'] = dist_func()
 
     t0 = time.perf_counter()
 
     t_greedy_es_initial, initial_epc_greedy_es, final_epc_greedy_es = greedy_es_local_opt(
-      fresh_graph(), K, num_samples=N_SAMPLE,
+      H0.copy(), K, num_samples=N_SAMPLE,
       local_iter=LOCAL_ITER, return_trace=True)
     
     t_greedy_es_final = time.perf_counter() - t0
@@ -842,7 +853,7 @@ for name, G in tqdm(graph_models_dense.items(), desc="Processing models", total=
     t0 = time.perf_counter()
 
     t_greedy_mis_initial, mis_epc_initial, mis_epc_init_std, mis_epc_final, mis_epc_final_std = robust_greedy_mis_optimized(
-      fresh_graph(), K, num_samples=N_SAMPLE,
+      H0.copy(), K, num_samples=N_SAMPLE,
       trials=10, max_iter=LOCAL_ITER)
     
     t_greedy_mis_final = time.perf_counter() - t0
@@ -858,8 +869,8 @@ for name, G in tqdm(graph_models_dense.items(), desc="Processing models", total=
     ]:
       
       records.append({
-        'model': name,
-        'p': p,
+        'model': name_model,
+        'name_dist': name_dist,
         'algo': algo,
         'time': t,
         'epc': epc,
@@ -867,4 +878,4 @@ for name, G in tqdm(graph_models_dense.items(), desc="Processing models", total=
       })
 
     df = pd.DataFrame(records)
-    df.to_csv(f"Result_heuristics_all_{name}_{NODES}_{K}_greedies_opt_dense_graph.csv", index=False)
+    df.to_csv(f"Result_heuristics_all_{name_model}_{NODES}_{K}_greedies_opt_dynamic.csv", index=False)
