@@ -514,19 +514,26 @@ N_SAMPLE = 100_000
 REGA_R = 5
 REGA_ALPHA = 0.3
 
-K = 10
-NODES = 100
+K = 5
+NODES = 50
 
 # nodes 100, edges 200
-graph_models = {
-  # 'ER': nx.erdos_renyi_graph(NODES, 0.0443, seed=SEED),
-  'BA': nx.barabasi_albert_graph(NODES, 2,seed=SEED),
-  'SW': nx.watts_strogatz_graph(NODES, 4, 0.3, seed=SEED)
+# graph_models = {
+#   # 'ER': nx.erdos_renyi_graph(NODES, 0.0443, seed=SEED),
+#   'BA': nx.barabasi_albert_graph(NODES, 2,seed=SEED),
+#   'SW': nx.watts_strogatz_graph(NODES, 4, 0.3, seed=SEED)
+# }
+
+# nodes 50, p = 0.5 (Dense Graphs) 2500 edges
+graph_models_dense = {
+  'ER': nx.erdos_renyi_graph(NODES, 0.5025, seed=SEED),
+  'BA': nx.barabasi_albert_graph(NODES,25,seed=SEED),
+  'SW': nx.watts_strogatz_graph(NODES, 25, 0.3, seed=SEED)
 }
 
-for name, G in tqdm(graph_models.items(), desc="Processing models", total=len(graph_models)):
+for name, G in tqdm(graph_models_dense.items(), desc="Processing models", total=len(graph_models_dense)):
   records = []
-  for p in tqdm(np.arange(0.0, 1.1, 0.1), desc="Processing", total=int(1.1/0.1)):
+  for p in tqdm(np.arange(0.0, 1.2, 0.2), desc="Processing", total=int(1.2/0.2)):
 
     def fresh_graph():
       H = G.copy()
@@ -534,26 +541,26 @@ for name, G in tqdm(graph_models.items(), desc="Processing models", total=len(gr
         H[u][v]['p'] = p
       return H
 
-    # # Heuristics 1: Degree-Based Centrality
-    # t0 = time.perf_counter()
-    # G_degree  = remove_k_degree_centrality(fresh_graph(), K)
-    # t_degree  = time.perf_counter() - t0
+    # Heuristics 1: Degree-Based Centrality
+    t0 = time.perf_counter()
+    G_degree  = remove_k_degree_centrality(fresh_graph(), K)
+    t_degree  = time.perf_counter() - t0
 
-    # epc_degree = component_sampling_epc_mc(G_degree, set(), N_SAMPLE)
+    epc_degree = component_sampling_epc_mc(G_degree, set(), N_SAMPLE)
 
-    # # Heuristics 2: Betweenness
-    # t0 = time.perf_counter()
-    # G_between  = remove_k_betweenness(fresh_graph(), K)
-    # t_between  = time.perf_counter() - t0
+    # Heuristics 2: Betweenness
+    t0 = time.perf_counter()
+    G_between  = remove_k_betweenness(fresh_graph(), K)
+    t_between  = time.perf_counter() - t0
 
-    # epc_between = component_sampling_epc_mc(G_between, set(), N_SAMPLE)
+    epc_between = component_sampling_epc_mc(G_between, set(), N_SAMPLE)
 
-    # # Heuristics 3: PageRank node
-    # t0 = time.perf_counter()
-    # G_pagerank  = remove_k_pagerank_nodes(fresh_graph(), K)
-    # t_pagerank  = time.perf_counter() - t0
+    # Heuristics 3: PageRank node
+    t0 = time.perf_counter()
+    G_pagerank  = remove_k_pagerank_nodes(fresh_graph(), K)
+    t_pagerank  = time.perf_counter() - t0
 
-    # epc_pagerank = component_sampling_epc_mc(G_pagerank, set(), N_SAMPLE)
+    epc_pagerank = component_sampling_epc_mc(G_pagerank, set(), N_SAMPLE)
 
     # # Heuristics 4: Greedy from Empty Set + EPC (optimized) 
     # t0 = time.perf_counter()
@@ -607,9 +614,9 @@ for name, G in tqdm(graph_models.items(), desc="Processing models", total=len(gr
     print(f"\n{name} - {p} REGA: {epc_rega}\n")
 
     for algo, t, epc in [
-      # ('Degree-based', t_degree, epc_degree),
-      # ('Betweenness', t_between, epc_between),
-      # ('PageRank', t_pagerank, epc_pagerank),
+      ('Degree-based', t_degree, epc_degree),
+      ('Betweenness', t_between, epc_between),
+      ('PageRank', t_pagerank, epc_pagerank),
       # ('Greedy_ES', t_greedy_es, epc_greedy_es),
       # ('Greedy_MIS', t_greedy_mis, epc_greedy_mis),
       ('REGA', t_rega, epc_rega),      
@@ -623,5 +630,5 @@ for name, G in tqdm(graph_models.items(), desc="Processing models", total=len(gr
         'epc': epc,
       })
 
-  df = pd.DataFrame(records)
-  df.to_csv(f"Result_heuristics_all_{name}_{NODES}_{K}_REGA.csv", index=False)
+    df = pd.DataFrame(records)
+    df.to_csv(f"dense/Result_heuristics_all_{name}_{NODES}_{K}_heuristics_REGA_dense.csv", index=False)
