@@ -834,7 +834,7 @@ for name_model, G in tqdm(
   records = []
 
   for name_dist, dist_func in tqdm(
-    dist_funcs,
+    dist_funcs.items(),
     desc="Processing",
     total=len(dist_funcs)):
 
