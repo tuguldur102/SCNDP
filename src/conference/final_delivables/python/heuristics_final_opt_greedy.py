@@ -488,13 +488,13 @@ def remove_k_pagerank_nodes(
     """
     pagerank_kwargs = {} if pagerank_kwargs is None else dict(pagerank_kwargs)
 
-    # 1. Compute PR on the node set
+    # Compute PR on the node set
     pr = nx.pagerank(G, **pagerank_kwargs)
 
-    # 2. Pick the k nodes with largest score
+    # Pick the k nodes with largest score
     topk = sorted(pr, key=pr.get, reverse=True)[:k]
 
-    # 3. Remove and return a fresh graph
+    # Remove and return a fresh graph
     H = G.copy()
     H.remove_nodes_from(topk)
     return H
@@ -625,22 +625,18 @@ def greedy_epc_mis_numba(
     target_survivors = n - k
     survivors = n - np.sum(deleted)
 
-    # how many flips we'll actually do?
     flips_needed = target_survivors - survivors
     if flips_needed < 0:
         flips_needed = 0
 
-    # one slot for the initial EPC + one per flip
     max_steps = 1 + flips_needed
     trace_np = np.empty(max_steps, dtype=np.float64)
 
-    # record initial EPC
     step = 0
     curr_epc = epc_mc(indptr, indices, probs, deleted, num_samples)
     trace_np[step] = curr_epc
     step += 1
 
-    # now do exactly flips_needed iterations
     while survivors < target_survivors:
         best_sigma = 1e18
         best_j = -1
@@ -670,11 +666,11 @@ def greedy_mis_optimized(
   return_trace: bool = False,
 ) -> Union[Set[int], Tuple[Set[int], list]]:
     
-    # 1. CSR conversion
+    # CSR conversion
     nodes, idx_of, indptr, indices, probs = nx_to_csr(G)
     n = len(nodes)
 
-    # 2. Build initial MIS mask
+    # Build initial MIS mask
     # MIS = nx.maximal_independent_set(G)
     # deleted = np.ones(n, dtype=np.bool_)
     # for u in MIS:
@@ -708,17 +704,17 @@ def greedy_mis_optimized(
 
     best_deleted = deleted.copy()
 
-    # 3. Call the fast Numba core
+    # Call the fast Numba core
     final_deleted, trace_np, cnt = greedy_epc_mis_numba(
         indptr, indices, probs, 
         best_deleted, 
         n, k, num_samples
     )
 
-    # 4. Slice out only the filled portion of the trace
+    # Slice out only the filled portion of the trace
     trace = trace_np[:cnt].tolist()
 
-    # 5. Map mask back to node-IDs
+    # Map mask back to node-IDs
     D = {nodes[i] for i in range(n) if final_deleted[i]}
 
     return (D, trace) if return_trace else D
@@ -730,28 +726,28 @@ def greedy_mis_local_search(
     num_samples: int = 100_000,
     max_local_iters: int = 5
 ) -> Set[int]:
-    # 1) build CSR
+    # build CSR
     nodes, idx_of, indptr, indices, probs = nx_to_csr(G)
     n = len(nodes)
 
-    # 2) get a starting D via your Numba‐greedy MIS
+    # get a starting D via your Numba‐greedy MIS
     S = greedy_mis_optimized(
         G, k, 
         num_samples=num_samples, mis_rounds=100,
         return_trace=False)
     
-    # 3) make the Boolean mask
+    # make the Boolean mask
     deleted = np.zeros(n, dtype=np.bool_)
     for u in S:
         deleted[idx_of[u]] = True
 
-    # 4) run the local search
+    # run the local search
     final_deleted = local_search_swap(
         indptr, indices, probs, 
         deleted, n, num_samples, max_local_iters
     )
 
-    # 5) map back to node IDs
+    # map back to node IDs
     return {nodes[i] for i in range(n) if final_deleted[i]}
 
 def robust_greedy_mis_optimized(
