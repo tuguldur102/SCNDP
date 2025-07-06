@@ -8,6 +8,7 @@ from collections import defaultdict, deque
 from itertools import combinations
 from typing import Any, Tuple, Dict, List, Set, Sequence, Union
 from itertools import permutations, combinations
+from scipy import sparse
 
 # === Third-Party Libraries ===
 
@@ -343,7 +344,280 @@ def rega(G: nx.Graph,
             improved = True
 
     return D
- 
+
+def solve_lp_relaxation_edges_only(G: nx.Graph, pre_fixed: set, k: int):
+    V = list(G.nodes())
+    # ─── build x only for real edges ─────────────────────────
+    E = [tuple(sorted(e)) for e in G.edges()]
+    n, m = len(V), len(E)
+
+    s_idx = {v: i         for i, v in enumerate(V)}
+    x_idx = {e: n + j     for j, e in enumerate(E)}
+    N     = n + m
+
+    # ─── variable bounds ────────────────────────────────────
+    bounds = [(0,1)] * N
+    for v in pre_fixed:
+        bounds[s_idx[v]] = (1,1)
+
+    # ─── objective: min Σ(1−x) ⇔ min −Σ x ──────────────────
+    c = np.zeros(N)
+    for e in E:
+        c[x_idx[e]] = -1.0
+
+    # ─── build A_ub, b_ub ───────────────────────────────────
+    A_ub, b_ub = [], []
+
+    # (a) budget: Σ s_i ≤ k
+    row = np.zeros(N); row[:n] = 1
+    A_ub.append(row); b_ub.append(k)
+
+    # (b) edge upper bounds:  x_uv − s_u − s_v ≤ 1 − p_uv
+    for (u,v) in E:
+        p_uv = G.edges[u,v]["p"]
+        row = np.zeros(N)
+        row[x_idx[(u,v)]] =  1
+        row[s_idx[u]]      = -1
+        row[s_idx[v]]      = -1
+        A_ub.append(row)
+        b_ub.append(1 - p_uv)
+
+    # (c) triangle cuts only when all three edges exist
+    def has_x(a,b): return tuple(sorted((a,b))) in x_idx
+    for i,j,k in permutations(V,3):
+        if i<k:
+            e_ij, e_jk, e_ik = tuple(sorted((i,j))), tuple(sorted((j,k))), tuple(sorted((i,k)))
+            # only if every pair is a real edge
+            if e_ij in x_idx and e_jk in x_idx and e_ik in x_idx:
+                row = np.zeros(N)
+                row[x_idx[e_ik]] =  1
+                row[x_idx[e_ij]] = -1
+                row[x_idx[e_jk]] = -1
+                A_ub.append(row)
+                b_ub.append(0)
+
+    A_ub = np.vstack(A_ub)
+    b_ub = np.array(b_ub)
+
+    # ─── solve ───────────────────────────────────────────────
+    res = linprog(c, A_ub=A_ub, b_ub=b_ub,
+                  bounds=bounds, method="highs")
+    if not res.success:
+        raise RuntimeError(res.message)
+
+    # ─── unpack ──────────────────────────────────────────────
+    s_vals = {v: res.x[s_idx[v]] for v in V}
+    x_sum  = res.x[n:].sum()
+    obj    = len(E) - x_sum  # Σ(1−x)
+
+    return s_vals, obj
+
+def rega_edges(G: nx.Graph,
+        k: int,
+        epc_func,
+        num_samples: int = 100_000,
+        # epsilon: float = None,
+        # delta: float = None,
+        use_tqdm: bool = False):
+    """
+    Full REGA pipeline: LP‐rounding + CSP‐refined local swaps.
+    """
+
+    # iterative rounding
+    D = set()
+    for _ in range(k):
+      s_vals, _ = solve_lp_relaxation_edges_only(G, pre_fixed=D, k=k)
+      # pick the fractional s_i largest among V\D
+      u = max((v for v in G.nodes() if v not in D),
+              key=lambda v: s_vals[v])
+      D.add(u)
+
+    # local‐swap refinement
+    current_epc = epc_func(G, D,
+                           num_samples=num_samples,
+                        #    epsilon=epsilon,
+                        #    delta=delta,
+                        #    use_tqdm=use_tqdm
+                           )
+
+    improved = True
+    
+    while improved:
+
+        improved = False
+        best_epc = current_epc
+        best_swap = None
+
+        for u in list(D):
+            for v in G.nodes():
+
+                if v in D: 
+                    continue
+
+                D_new = (D - {u}) | {v}
+
+                epc_val = epc_func(G, D_new,
+                                   num_samples=num_samples,
+                                #    epsilon=epsilon,
+                                #    delta=delta,
+                                #    use_tqdm=use_tqdm
+                                   )
+                
+                if epc_val < best_epc:
+                    best_epc = epc_val
+                    best_swap = (u, v)
+
+        if best_swap is not None:
+
+            u, v = best_swap
+            D.remove(u)
+            D.add(v)
+            current_epc = best_epc
+            improved = True
+
+    return D
+
+def solve_lp_reaga_sparse(G: nx.Graph, pre_fixed: set, k: int):
+    V = list(G.nodes())
+    n = len(V)
+
+    # 1) x_ij for every pair i<j
+    Pairs = [tuple(sorted(e)) for e in combinations(V, 2)]
+    m2 = len(Pairs)
+    Nvar = n + m2
+
+    s_idx = {v: i       for i, v in enumerate(V)}
+    x_idx = {e: n + j   for j, e in enumerate(Pairs)}
+
+    # 2) count rows: 1 budget + |E| edge‐bounds + |E|*(n-2) triangles
+    E = [tuple(sorted(e)) for e in G.edges()]
+    n_rows = 1 + len(E) + len(E) * (n - 2)
+
+    # 3) allocate a sparse LIL matrix for easy row‐by‐row insertion
+    A = sparse.lil_matrix((n_rows, Nvar), dtype=float)
+    b = np.zeros(n_rows, dtype=float)
+    row = 0
+
+    # (a) budget: Σ s_i ≤ k
+    A[row, :n] = 1
+    b[row]     = k
+    row += 1
+
+    # (b) edge‐upper‐bounds: x_uv - s_u - s_v ≤ 1 - p_uv
+    for (u, v) in E:
+        puv = G.edges[u, v]['p']
+        A[row, x_idx[(u, v)]] =  1
+        A[row, s_idx[u]]      = -1
+        A[row, s_idx[v]]      = -1
+        b[row]                = 1 - puv
+        row += 1
+
+    # (c) triangles only for each real edge (i,j) and all k ≠ i,j
+    for (i, j) in E:
+        for k in V:
+            if k == i or k == j:
+                continue
+            # x_ik - x_ij - x_jk ≤ 0
+            A[row, x_idx[tuple(sorted((i, k)))]] =  1
+            A[row, x_idx[(i, j)]]               = -1
+            A[row, x_idx[tuple(sorted((j, k)))]] = -1
+            b[row]                              = 0
+            row += 1
+
+    # 4) convert to CSR for linprog
+    A_ub = A.tocsr()
+    b_ub = b
+
+    # 5) variable bounds
+    bounds = [(0,1)] * Nvar
+    for v in pre_fixed:
+        bounds[s_idx[v]] = (1,1)
+
+    # 6) objective: min Σ(1 - x) <=> min -Σ x
+    c = np.zeros(Nvar)
+    for e in Pairs:
+        c[x_idx[e]] = -1
+
+    # 7) call HiGHS
+    res = linprog(c,
+                  A_ub=A_ub, b_ub=b_ub,
+                  bounds=bounds,
+                  method="highs")
+    if not res.success:
+        raise RuntimeError(res.message)
+
+    # 8) extract
+    s_vals = {v: res.x[s_idx[v]] for v in V}
+    x_sum  = res.x[n:].sum()
+    obj    = len(Pairs) - x_sum
+
+    return s_vals, obj
+
+def rega_sparse(G: nx.Graph,
+        k: int,
+        epc_func,
+        num_samples: int = 100_000,
+        # epsilon: float = None,
+        # delta: float = None,
+        use_tqdm: bool = False):
+    """
+    Full REGA pipeline: LP‐rounding + CSP‐refined local swaps.
+    """
+
+    # iterative rounding
+    D = set()
+    for _ in range(k):
+      s_vals, _ = solve_lp_reaga_sparse(G, pre_fixed=D, k=k)
+      # pick the fractional s_i largest among V\D
+      u = max((v for v in G.nodes() if v not in D),
+              key=lambda v: s_vals[v])
+      D.add(u)
+
+    # local‐swap refinement
+    current_epc = epc_func(G, D,
+                           num_samples=num_samples,
+                        #    epsilon=epsilon,
+                        #    delta=delta,
+                        #    use_tqdm=use_tqdm
+                           )
+
+    improved = True
+    
+    while improved:
+
+        improved = False
+        best_epc = current_epc
+        best_swap = None
+
+        for u in list(D):
+            for v in G.nodes():
+
+                if v in D: 
+                    continue
+
+                D_new = (D - {u}) | {v}
+
+                epc_val = epc_func(G, D_new,
+                                   num_samples=num_samples,
+                                #    epsilon=epsilon,
+                                #    delta=delta,
+                                #    use_tqdm=use_tqdm
+                                   )
+                
+                if epc_val < best_epc:
+                    best_epc = epc_val
+                    best_swap = (u, v)
+
+        if best_swap is not None:
+
+            u, v = best_swap
+            D.remove(u)
+            D.add(v)
+            current_epc = best_epc
+            improved = True
+
+    return D
+
 SEED = 42
 N_SAMPLE = 100_000
 
@@ -377,7 +651,7 @@ for name_model, G in tqdm(
   desc="Processing models", 
   total=len(graph_models)):
   
-  for p in tqdm(np.arange(0.0, 1.1, 0.1), desc="Processing", total=int(1.1/0.1)):
+  for p in tqdm(np.arange(0.8, 1.1, 0.1), desc="Processing", total=int(1.1-0.8/0.1)):
 
     def fresh_graph():
       H = G.copy()
@@ -392,15 +666,42 @@ for name_model, G in tqdm(
       fresh_graph(),
       k=K,
       epc_func=epc_mc_deleted,
-      num_samples=100_000,
+      num_samples=N_SAMPLE,
       use_tqdm=False)
     
     rega_epc = epc_mc_deleted(fresh_graph(), rega_D, N_SAMPLE)
     t_rega = time.perf_counter() - t0
 
+    # REGA edges
+    t0 = time.perf_counter()
+
+    rega_D_edges = rega_edges(
+      fresh_graph(),
+      k=K,
+      epc_func=epc_mc_deleted,
+      num_samples=N_SAMPLE,
+      use_tqdm=False)
+    
+    rega_epc_edges = epc_mc_deleted(fresh_graph(), rega_D_edges, N_SAMPLE)
+    t_rega_edges = time.perf_counter() - t0
+
+    # REGA sparse
+    t0 = time.perf_counter()
+
+    rega_D_sparse = rega_sparse(
+      fresh_graph(),
+      k=K,
+      epc_func=epc_mc_deleted,
+      num_samples=N_SAMPLE,
+      use_tqdm=False)
+    
+    rega_epc_sparse = epc_mc_deleted(fresh_graph(), rega_D_sparse, N_SAMPLE)
+    t_rega_sparse = time.perf_counter() - t0
+
     # print(f"\nGreedy ES init: {initial_epc_greedy_es} vs {final_epc_greedy_es}\n")
     # print(f"\nGreedy MIS init: {mis_epc_initial} vs {mis_epc_final}\n")
-    print(f"\n name: REGA: {rega_epc}")
+    print(f"\n ~~~ model: {name_model} p: {p} --- name: REGA:\
+           {rega_epc} vs edges: {rega_epc_edges} vs sparse: {rega_epc_sparse}~~~")
 
     for algo, t, epc, std in [
       # ('Greedy_ES_initial', t_greedy_es_initial, initial_epc_greedy_es, 0.0),
@@ -423,5 +724,5 @@ for name_model, G in tqdm(
 
 SAVE_ROOT_PATH = "/home/tuguldurb/Development/Research/SCNDP/src/SCNDP/src/extension/heuristics/results"
 
-df = pd.DataFrame(records)
-df.to_csv(f"{SAVE_ROOT_PATH}/Result_REGA_{NODES}_{K}.csv", index=False)
+# df = pd.DataFrame(records)
+# df.to_csv(f"{SAVE_ROOT_PATH}/csv/Result_REGA_{NODES}_{K}.csv", index=False)
