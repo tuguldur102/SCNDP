@@ -42,20 +42,20 @@ nest-asyncio==1.6.0
 networkx==3.4.2
 numba==0.61.2
 numpy==2.2.6
-nvidia-cublas-cu12==12.6.4.1
-nvidia-cuda-cupti-cu12==12.6.80
-nvidia-cuda-nvrtc-cu12==12.6.77
-nvidia-cuda-runtime-cu12==12.6.77
-nvidia-cudnn-cu12==9.5.1.17
-nvidia-cufft-cu12==11.3.0.4
-nvidia-cufile-cu12==1.11.1.6
-nvidia-curand-cu12==10.3.7.77
-nvidia-cusolver-cu12==11.7.1.2
-nvidia-cusparse-cu12==12.5.4.2
-nvidia-cusparselt-cu12==0.6.3
-nvidia-nccl-cu12==2.26.2
-nvidia-nvjitlink-cu12==12.6.85
-nvidia-nvtx-cu12==12.6.77
+# nvidia-cublas-cu12==12.6.4.1
+# nvidia-cuda-cupti-cu12==12.6.80
+# nvidia-cuda-nvrtc-cu12==12.6.77
+# nvidia-cuda-runtime-cu12==12.6.77
+# nvidia-cudnn-cu12==9.5.1.17
+# nvidia-cufft-cu12==11.3.0.4
+# nvidia-cufile-cu12==1.11.1.6
+# nvidia-curand-cu12==10.3.7.77
+# nvidia-cusolver-cu12==11.7.1.2
+# nvidia-cusparse-cu12==12.5.4.2
+# nvidia-cusparselt-cu12==0.6.3
+# nvidia-nccl-cu12==2.26.2
+# nvidia-nvjitlink-cu12==12.6.85
+# nvidia-nvtx-cu12==12.6.77
 packaging==25.0
 pandas==2.3.0
 parso==0.8.4
@@ -69,7 +69,7 @@ psutil==7.0.0
 ptyprocess==0.7.0
 PuLP==3.2.1
 pure_eval==0.2.3
-pyg-lib==0.4.0+pt27cu126
+# pyg-lib==0.4.0+pt27cu126
 Pygments==2.19.1
 pyparsing==3.2.3
 pytest==8.4.0
@@ -85,17 +85,17 @@ stack-data==0.6.3
 sympy==1.14.0
 tomli==2.2.1
 torch==2.7.1
-torch-geometric==2.6.1
-torch_cluster==1.6.3+pt27cu126
-torch_scatter==2.1.2+pt27cu126
-torch_sparse==0.6.18+pt27cu126
-torch_spline_conv==1.2.2+pt27cu126
+# torch-geometric==2.6.1
+# torch_cluster==1.6.3+pt27cu126
+# torch_scatter==2.1.2+pt27cu126
+# torch_sparse==0.6.18+pt27cu126
+# torch_spline_conv==1.2.2+pt27cu126
 torchaudio==2.7.1
 torchvision==0.22.1
 tornado==6.5.1
 tqdm==4.67.1
 traitlets==5.14.3
-triton==3.3.1
+# triton==3.3.1
 typing_extensions==4.14.0
 tzdata==2025.2
 urllib3==2.4.0

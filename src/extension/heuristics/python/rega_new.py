@@ -651,7 +651,7 @@ for name_model, G in tqdm(
   desc="Processing models", 
   total=len(graph_models)):
   
-  for p in tqdm(np.arange(0.8, 1.1, 0.1), desc="Processing", total=int(1.1-0.8/0.1)):
+  for p in tqdm(np.arange(0.0, 1.1, 0.1), desc="Processing", total=int(1.1/0.1)):
 
     def fresh_graph():
       H = G.copy()
@@ -673,35 +673,38 @@ for name_model, G in tqdm(
     t_rega = time.perf_counter() - t0
 
     # REGA edges
-    t0 = time.perf_counter()
+    # t0 = time.perf_counter()
 
-    rega_D_edges = rega_edges(
-      fresh_graph(),
-      k=K,
-      epc_func=epc_mc_deleted,
-      num_samples=N_SAMPLE,
-      use_tqdm=False)
+    # rega_D_edges = rega_edges(
+    #   fresh_graph(),
+    #   k=K,
+    #   epc_func=epc_mc_deleted,
+    #   num_samples=N_SAMPLE,
+    #   use_tqdm=False)
     
-    rega_epc_edges = epc_mc_deleted(fresh_graph(), rega_D_edges, N_SAMPLE)
-    t_rega_edges = time.perf_counter() - t0
+    # rega_epc_edges = epc_mc_deleted(fresh_graph(), rega_D_edges, N_SAMPLE)
+    # t_rega_edges = time.perf_counter() - t0
 
     # REGA sparse
-    t0 = time.perf_counter()
+    # t0 = time.perf_counter()
 
-    rega_D_sparse = rega_sparse(
-      fresh_graph(),
-      k=K,
-      epc_func=epc_mc_deleted,
-      num_samples=N_SAMPLE,
-      use_tqdm=False)
+    # rega_D_sparse = rega_sparse(
+    #   fresh_graph(),
+    #   k=K,
+    #   epc_func=epc_mc_deleted,
+    #   num_samples=N_SAMPLE,
+    #   use_tqdm=False)
     
-    rega_epc_sparse = epc_mc_deleted(fresh_graph(), rega_D_sparse, N_SAMPLE)
-    t_rega_sparse = time.perf_counter() - t0
+    # rega_epc_sparse = epc_mc_deleted(fresh_graph(), rega_D_sparse, N_SAMPLE)
+    # t_rega_sparse = time.perf_counter() - t0
 
     # print(f"\nGreedy ES init: {initial_epc_greedy_es} vs {final_epc_greedy_es}\n")
     # print(f"\nGreedy MIS init: {mis_epc_initial} vs {mis_epc_final}\n")
+    
     print(f"\n ~~~ model: {name_model} p: {p} --- name: REGA:\
-           {rega_epc} vs edges: {rega_epc_edges} vs sparse: {rega_epc_sparse}~~~")
+           {rega_epc}")
+    
+    # print(f"\t edges: {rega_epc_edges} vs sparse: {rega_epc_sparse}~~~")
 
     for algo, t, epc, std in [
       # ('Greedy_ES_initial', t_greedy_es_initial, initial_epc_greedy_es, 0.0),
@@ -711,6 +714,8 @@ for name_model, G in tqdm(
       # ('Greedy_MIS_final', t_greedy_mis_final, mis_epc_final, mis_epc_final_std),
 
       ('REGA', t_rega, rega_epc, 0)
+      # ('REGA_edges', t_rega, rega_epc, 0)
+      # ('REGA_sparse', t_rega, rega_epc, 0)
     ]:
       
       records.append({
@@ -724,5 +729,5 @@ for name_model, G in tqdm(
 
 SAVE_ROOT_PATH = "/home/tuguldurb/Development/Research/SCNDP/src/SCNDP/src/extension/heuristics/results"
 
-# df = pd.DataFrame(records)
-# df.to_csv(f"{SAVE_ROOT_PATH}/csv/Result_REGA_{NODES}_{K}.csv", index=False)
+df = pd.DataFrame(records)
+df.to_csv(f"{SAVE_ROOT_PATH}/csv/Result_REGA_{NODES}_{K}.csv", index=False)
