@@ -620,6 +620,7 @@ def rega_sparse(G: nx.Graph,
 
 SEED = 42
 N_SAMPLE = 100_000
+N_SAMPLE_LS = 10_000
 
 K = 10
 NODES = 100
@@ -666,7 +667,7 @@ for name_model, G in tqdm(
       fresh_graph(),
       k=K,
       epc_func=epc_mc_deleted,
-      num_samples=N_SAMPLE,
+      num_samples=N_SAMPLE_LS,
       use_tqdm=False)
     
     rega_epc = epc_mc_deleted(fresh_graph(), rega_D, N_SAMPLE)
@@ -700,9 +701,9 @@ for name_model, G in tqdm(
 
     # print(f"\nGreedy ES init: {initial_epc_greedy_es} vs {final_epc_greedy_es}\n")
     # print(f"\nGreedy MIS init: {mis_epc_initial} vs {mis_epc_final}\n")
-    
+
     print(f"\n ~~~ model: {name_model} p: {p} --- name: REGA:\
-           {rega_epc}")
+           {rega_epc} and time: {t_rega}")
     
     # print(f"\t edges: {rega_epc_edges} vs sparse: {rega_epc_sparse}~~~")
 
@@ -727,7 +728,9 @@ for name_model, G in tqdm(
         'epc_std': std,
       })
 
-SAVE_ROOT_PATH = "/home/tuguldurb/Development/Research/SCNDP/src/SCNDP/src/extension/heuristics/results"
+SAVE_ROOT_PATH = r"C:\Users\btugu\Documents\develop\research\SCNDP\src\extension\heuristics\results"
 
 df = pd.DataFrame(records)
-df.to_csv(f"{SAVE_ROOT_PATH}/csv/Result_REGA_{NODES}_{K}.csv", index=False)
+# df.to_csv(f"Result_REGA_{NODES}_{K}.csv", index=False)
+
+df.to_csv(f"{SAVE_ROOT_PATH}/csv/Result_REGA_{NODES}_{K}_1.csv", index=False)
