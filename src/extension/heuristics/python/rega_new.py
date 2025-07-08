@@ -729,8 +729,10 @@ for name_model, G in tqdm(
       })
 
 SAVE_ROOT_PATH = r"C:\Users\btugu\Documents\develop\research\SCNDP\src\extension\heuristics\results"
+SAVE_ROOT_PATH_JOB = "/home/tuguldurb/Development/Research/SCNDP/src/SCNDP/src/extension/heuristics/results"
+
 
 df = pd.DataFrame(records)
 # df.to_csv(f"Result_REGA_{NODES}_{K}.csv", index=False)
 
-df.to_csv(f"{SAVE_ROOT_PATH}/csv/Result_REGA_{NODES}_{K}_1.csv", index=False)
+df.to_csv(f"{SAVE_ROOT_PATH_JOB}/csv/Result_REGA_{NODES}_{K}_job.csv", index=False)
