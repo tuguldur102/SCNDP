@@ -14,6 +14,7 @@ from typing import Any, Tuple, Dict, List, Set, Sequence, Union
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
+from scipy.sparse    import coo_matrix
 from scipy.optimize import linprog
 
 # --- Plotting ---
@@ -788,6 +789,77 @@ def solve_lp_(G, pre_fixed, k):
 
     return s_vals, objective
 
+def solve_lp_reaga_sparse(G: nx.Graph, pre_fixed: set, k: int):
+    V = list(G.nodes())
+    n = len(V)
+
+    # variables: s_i  (i = 0…n-1)      x_ij (j = 0…m2-1)
+    Pairs = [tuple(sorted(e)) for e in combinations(V, 2)]
+    m2    = len(Pairs)
+    Nvar  = n + m2
+    s_idx = {v: i         for i, v in enumerate(V)}
+    x_idx = {e: n + j     for j, e in enumerate(Pairs)}
+
+    
+    rows, cols, data = [], [], []
+    rhs              = []
+
+    def add_coef(r, c, val):
+        rows.append(r); cols.append(c); data.append(val)
+
+    r = 0 
+
+    # budget 
+    for i in range(n):
+        add_coef(r, i, 1.0)
+    rhs.append(k); r += 1
+
+    # edge upper bounds  x_uv − s_u − s_v ≤ 1 − p_uv
+    for (u, v) in G.edges():
+        u, v   = sorted((u, v))
+        puv    = G.edges[u, v]['p']
+        add_coef(r, x_idx[(u, v)],  1.0)
+        add_coef(r, s_idx[u],      -1.0)
+        add_coef(r, s_idx[v],      -1.0)
+        rhs.append(1 - puv); r += 1
+
+    # triangle cuts for each real edge (i,j) and every
+    for (i, j) in G.edges():
+        i, j = sorted((i, j))
+        for k_ in V:
+            if k_ == i or k_ == j:
+                continue
+            add_coef(r, x_idx[tuple(sorted((i, k_)))],  1.0)  
+            add_coef(r, x_idx[(i, j)]               , -1.0)  
+            add_coef(r, x_idx[tuple(sorted((j, k_)))], -1.0)   
+            rhs.append(0.0); r += 1
+
+    n_rows = r
+    A_ub   = coo_matrix((data, (rows, cols)), shape=(n_rows, Nvar)).tocsr()
+    b_ub   = np.asarray(rhs)
+
+    # bounds 
+    bounds = [(0.0, 1.0)] * Nvar
+    for v in pre_fixed:
+        bounds[s_idx[v]] = (1.0, 1.0)
+
+    #  objective 
+    c = np.zeros(Nvar)
+    for e in Pairs:
+        c[x_idx[e]] = -1.0
+
+    # 
+    res = linprog(c, A_ub=A_ub, b_ub=b_ub,
+                  bounds=bounds, method="highs")
+    if not res.success:
+        raise RuntimeError("LP infeasible: " + res.message)
+
+    #
+    s_vals = {v: res.x[s_idx[v]] for v in V}
+    x_sum  = res.x[n:].sum()
+    obj    = len(Pairs) - x_sum
+    return s_vals, obj
+
 def rega(G: nx.Graph,
         k: int,
         epc_func,
@@ -805,7 +877,9 @@ def rega(G: nx.Graph,
     # iterative rounding
     D = set()
     for _ in range(k):
-      s_vals, _ = solve_lp_(G, pre_fixed=D, k=k)
+      # s_vals, _ = solve_lp_(G, pre_fixed=D, k=k)
+      s_vals, _ = solve_lp_reaga_sparse(G, pre_fixed=D, k=k)
+
       # pick the fractional s_i largest among V\D
       u = max((v for v in G.nodes() if v not in D),
               key=lambda v: s_vals[v])
@@ -1147,9 +1221,9 @@ dist_funcs = {
 
 
 for name_model, G in tqdm(
-  graph_models.items(), 
+  graph_models_dense.items(), 
   desc="Processing models", 
-  total=len(graph_models)):
+  total=len(graph_models_dense)):
 
   records = []
 
@@ -1209,13 +1283,13 @@ for name_model, G in tqdm(
     t_greedy_es_final = time.perf_counter() - t0
 
     # heuristics 5: Greedy MIS optimized
-    t0 = time.perf_counter()
+    # t0 = time.perf_counter()
 
-    t_greedy_mis_initial, mis_epc_initial, mis_epc_init_std, mis_epc_final, mis_epc_final_std = robust_greedy_mis_optimized(
-      fresh_graph(), K, num_samples=N_SAMPLE_LS,
-      trials=10, max_iter=LOCAL_SEARCH_ITER)
+    # t_greedy_mis_initial, mis_epc_initial, mis_epc_init_std, mis_epc_final, mis_epc_final_std = robust_greedy_mis_optimized(
+    #   fresh_graph(), K, num_samples=N_SAMPLE_LS,
+    #   trials=10, max_iter=LOCAL_SEARCH_ITER)
     
-    t_greedy_mis_final = time.perf_counter() - t0
+    # t_greedy_mis_final = time.perf_counter() - t0
 
     # heuristics 6: REGA
     t0 = time.perf_counter()
@@ -1231,6 +1305,7 @@ for name_model, G in tqdm(
     rega_epc = epc_mc_deleted(fresh_graph(), rega_D, N_SAMPLE_EVAL)
     t_rega = time.perf_counter() - t0
 
+    # print(f"\n ---- REGA!!! ---- \n")
     # heuristics 7: Grasp + ls
     t0 = time.perf_counter()
 
@@ -1247,6 +1322,8 @@ for name_model, G in tqdm(
 
     t_grasp_ls = time.perf_counter() - t0
 
+    # print(f"\n ---- GRASP!!! ---- \n")
+
     # heuristics 8: Grasp + ls + path relinking + reactive alpha
     t0 = time.perf_counter()
 
@@ -1258,6 +1335,8 @@ for name_model, G in tqdm(
     
     t_grasp_opt = time.perf_counter() - t0
 
+    # print(f"\n ---- grasp ls!!! ---- \n")
+
     # print(f"\nGreedy ES init: {epc_greedy_es} vs {epc_greedy_es_ls}\n")
     # print(f"\nGreedy MIS init: {mis_epc_initial} vs {mis_epc_final}\n")
 
@@ -1268,8 +1347,8 @@ for name_model, G in tqdm(
 
       ('Greedy_ES_initial', t_greedy_es, epc_greedy_es, 0.0),
       ('Greedy_ES_final', t_greedy_es_final, epc_greedy_es_ls, 0.0),
-      ('Greedy_MIS_initial', t_greedy_mis_initial, mis_epc_initial, mis_epc_init_std),
-      ('Greedy_MIS_final', t_greedy_mis_final, mis_epc_final, mis_epc_final_std),
+      # ('Greedy_MIS_initial', t_greedy_mis_initial, mis_epc_initial, mis_epc_init_std),
+      # ('Greedy_MIS_final', t_greedy_mis_final, mis_epc_final, mis_epc_final_std),
 
       ('REGA', t_rega, rega_epc, 0.0),
       ('grasp', t_grasp_ls, epc_grasp_ls, 0.0),
@@ -1285,15 +1364,15 @@ for name_model, G in tqdm(
         'epc_std': std,
       })
 
-    SAVE_PATH_ROOT = "/home/tuguldurb/Development/Research/SCNDP/src/SCNDP/src/extension/heuristics/results"
+    # SAVE_PATH_ROOT = r"C:\Users\btugu\Documents\develop\research\SCNDP\src\extension\heuristics\results"
+
+    # df = pd.DataFrame(records)
+    # df.to_csv(f"{SAVE_PATH_ROOT}/csv/sparse/Result_heuristics_{name_model}_{NODES}_{K}_all_ls_.csv", index=False)
+
+    SAVE_PATH_ROOT = r"C:\Users\btugu\Documents\develop\research\SCNDP\src\extension\heuristics\results"
 
     df = pd.DataFrame(records)
-    df.to_csv(f"{SAVE_PATH_ROOT}/csv/sparse/Result_heuristics_{name_model}_{NODES}_{K}_all_ls_.csv", index=False)
-
-# SAVE_PATH_ROOT = "/home/tuguldurb/Development/Research/SCNDP/src/SCNDP/src/extension/heuristics/results"
-
-# df = pd.DataFrame(records)
-# df.to_csv(f"{SAVE_PATH_ROOT}/csv/dense/Result_heuristics_{NODES}_{K}_all_DENSE.csv", index=False)
+    df.to_csv(f"{SAVE_PATH_ROOT}/csv/dense/Result_heuristics_{NODES}_{K}_all_DENSE.csv", index=False)
 
 # SAVE_PATH_ROOT = "/home/tuguldurb/Development/Research/SCNDP/src/SCNDP/src/extension/heuristics/results"
 
