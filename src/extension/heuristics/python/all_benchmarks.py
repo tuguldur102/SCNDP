@@ -1206,11 +1206,13 @@ graph_models = {
   'SW': nx.watts_strogatz_graph(NODES, 4, 0.3, seed=SEED)
 }
 
+DENSE_NODES = 50 
 # nodes 50, p = 0.5 (Dense Graphs) 2500 edges
+
 graph_models_dense = {
-  'ER': nx.erdos_renyi_graph(NODES, 0.5025, seed=SEED),
-  'BA': nx.barabasi_albert_graph(NODES,25,seed=SEED),
-  'SW': nx.watts_strogatz_graph(NODES, 25, 0.3, seed=SEED)
+  'ER': nx.erdos_renyi_graph(DENSE_NODES, 0.5025, seed=SEED),
+  'BA': nx.barabasi_albert_graph(DENSE_NODES, 25,seed=SEED),
+  'SW': nx.watts_strogatz_graph(DENSE_NODES, 25, 0.3, seed=SEED)
 }
 
 dist_funcs = {
@@ -1221,29 +1223,32 @@ dist_funcs = {
 
 
 for name_model, G in tqdm(
-  graph_models_dense.items(), 
+  graph_models.items(), 
   desc="Processing models", 
-  total=len(graph_models_dense)):
+  total=len(graph_models)):
 
   records = []
 
-  for p in tqdm(np.arange(0.0, 1.1, 0.1), desc="Processing", total=int(1.1/0.1)):
+  # for p in tqdm(np.arange(0.0, 1.1, 0.1), desc="Processing", total=int(1.1/0.1)):
 
-    def fresh_graph():
-      H = G.copy()
-      for u, v in H.edges():
-        H[u][v]['p'] = p
-      return H
+  #   def fresh_graph():
+  #     H = G.copy()
+  #     for u, v in H.edges():
+  #       H[u][v]['p'] = p
+  #     return H
   
   # dist functions
-  # for name_dist, dist_func in tqdm(
-  #   dist_funcs.items(),
-  #   desc="Processing",
-  #   total=len(dist_funcs)):
+  for name_dist, dist_func in tqdm(
+    dist_funcs.items(),
+    desc="Processing",
+    total=len(dist_funcs)):
 
-  #   H0 = G.copy()
-  #   for u, v in H0.edges():
-  #     H0[u][v]['p'] = dist_func()
+    def fresh_graph():
+      """Fresh graph with new edge weights."""
+      H = G.copy()
+      for u, v in H.edges():
+        H[u][v]['p'] = dist_func()
+      return H
 
 
     # Heuristics 1: Degree-Based Centrality
@@ -1283,13 +1288,13 @@ for name_model, G in tqdm(
     t_greedy_es_final = time.perf_counter() - t0
 
     # heuristics 5: Greedy MIS optimized
-    # t0 = time.perf_counter()
+    t0 = time.perf_counter()
 
-    # t_greedy_mis_initial, mis_epc_initial, mis_epc_init_std, mis_epc_final, mis_epc_final_std = robust_greedy_mis_optimized(
-    #   fresh_graph(), K, num_samples=N_SAMPLE_LS,
-    #   trials=10, max_iter=LOCAL_SEARCH_ITER)
+    t_greedy_mis_initial, mis_epc_initial, mis_epc_init_std, mis_epc_final, mis_epc_final_std = robust_greedy_mis_optimized(
+      fresh_graph(), K, num_samples=N_SAMPLE_LS,
+      trials=10, max_iter=LOCAL_SEARCH_ITER)
     
-    # t_greedy_mis_final = time.perf_counter() - t0
+    t_greedy_mis_final = time.perf_counter() - t0
 
     # heuristics 6: REGA
     t0 = time.perf_counter()
@@ -1357,7 +1362,7 @@ for name_model, G in tqdm(
       
       records.append({
         'model': name_model,
-        'p': p,
+        'dist_func': name_dist,
         'algo': algo,
         'time': t,
         'epc': epc,
@@ -1369,12 +1374,12 @@ for name_model, G in tqdm(
     # df = pd.DataFrame(records)
     # df.to_csv(f"{SAVE_PATH_ROOT}/csv/sparse/Result_heuristics_{name_model}_{NODES}_{K}_all_ls_.csv", index=False)
 
+    # SAVE_PATH_ROOT = r"C:\Users\btugu\Documents\develop\research\SCNDP\src\extension\heuristics\results"
+
+    # df = pd.DataFrame(records)
+    # df.to_csv(f"{SAVE_PATH_ROOT}/csv/dense/Result_heuristics_{name_model}_{DENSE_NODES}_{K}_all_DENSE.csv", index=False)
+
     SAVE_PATH_ROOT = r"C:\Users\btugu\Documents\develop\research\SCNDP\src\extension\heuristics\results"
 
     df = pd.DataFrame(records)
-    df.to_csv(f"{SAVE_PATH_ROOT}/csv/dense/Result_heuristics_{NODES}_{K}_all_DENSE.csv", index=False)
-
-# SAVE_PATH_ROOT = "/home/tuguldurb/Development/Research/SCNDP/src/SCNDP/src/extension/heuristics/results"
-
-# df = pd.DataFrame(records)
-# df.to_csv(f"{SAVE_PATH_ROOT}/csv/dist_different/Result_heuristics_{NODES}_{K}_all_DIST_FUNC.csv", index=False)
+    df.to_csv(f"{SAVE_PATH_ROOT}/csv/dist/Result_heuristics_{name_model}_{NODES}_{K}_all_DIST_FUNC.csv", index=False)
