@@ -1196,17 +1196,18 @@ N_SAMPLE_LS = 10_000
 LOCAL_SEARCH_ITER = 1
 GRASP_RESTARTS = 3
 
-K = 10
-NODES = 100
+# K = 10
+# NODES = 100
 
 # nodes 100, edges 200 (Sparse Graphs)
-graph_models = {
-  'ER': nx.erdos_renyi_graph(NODES, 0.0443, seed=SEED),
-  'BA': nx.barabasi_albert_graph(NODES, 2,seed=SEED),
-  'SW': nx.watts_strogatz_graph(NODES, 4, 0.3, seed=SEED)
-}
+# graph_models = {
+#   'ER': nx.erdos_renyi_graph(NODES, 0.0443, seed=SEED),
+#   'BA': nx.barabasi_albert_graph(NODES, 2,seed=SEED),
+#   'SW': nx.watts_strogatz_graph(NODES, 4, 0.3, seed=SEED)
+# }
 
 DENSE_NODES = 50 
+K = 5
 # nodes 50, p = 0.5 (Dense Graphs) 2500 edges
 
 graph_models_dense = {
@@ -1223,32 +1224,32 @@ dist_funcs = {
 
 
 for name_model, G in tqdm(
-  graph_models.items(), 
+  graph_models_dense.items(), 
   desc="Processing models", 
-  total=len(graph_models)):
+  total=len(graph_models_dense)):
 
   records = []
 
-  # for p in tqdm(np.arange(0.0, 1.1, 0.1), desc="Processing", total=int(1.1/0.1)):
-
-  #   def fresh_graph():
-  #     H = G.copy()
-  #     for u, v in H.edges():
-  #       H[u][v]['p'] = p
-  #     return H
-  
-  # dist functions
-  for name_dist, dist_func in tqdm(
-    dist_funcs.items(),
-    desc="Processing",
-    total=len(dist_funcs)):
+  for p in tqdm(np.arange(0.0, 1.1, 0.1), desc="Processing", total=int(1.1/0.1)):
 
     def fresh_graph():
-      """Fresh graph with new edge weights."""
       H = G.copy()
       for u, v in H.edges():
-        H[u][v]['p'] = dist_func()
+        H[u][v]['p'] = p
       return H
+  
+  # dist functions
+  # for name_dist, dist_func in tqdm(
+  #   dist_funcs.items(),
+  #   desc="Processing",
+  #   total=len(dist_funcs)):
+
+  #   def fresh_graph():
+  #     """Fresh graph with new edge weights."""
+  #     H = G.copy()
+  #     for u, v in H.edges():
+  #       H[u][v]['p'] = dist_func()
+  #     return H
 
 
     # Heuristics 1: Degree-Based Centrality
@@ -1362,7 +1363,7 @@ for name_model, G in tqdm(
       
       records.append({
         'model': name_model,
-        'dist_func': name_dist,
+        'p': p,
         'algo': algo,
         'time': t,
         'epc': epc,
@@ -1374,12 +1375,12 @@ for name_model, G in tqdm(
     # df = pd.DataFrame(records)
     # df.to_csv(f"{SAVE_PATH_ROOT}/csv/sparse/Result_heuristics_{name_model}_{NODES}_{K}_all_ls_.csv", index=False)
 
-    # SAVE_PATH_ROOT = r"C:\Users\btugu\Documents\develop\research\SCNDP\src\extension\heuristics\results"
-
-    # df = pd.DataFrame(records)
-    # df.to_csv(f"{SAVE_PATH_ROOT}/csv/dense/Result_heuristics_{name_model}_{DENSE_NODES}_{K}_all_DENSE.csv", index=False)
-
     SAVE_PATH_ROOT = r"C:\Users\btugu\Documents\develop\research\SCNDP\src\extension\heuristics\results"
 
     df = pd.DataFrame(records)
-    df.to_csv(f"{SAVE_PATH_ROOT}/csv/dist/Result_heuristics_{name_model}_{NODES}_{K}_all_DIST_FUNC.csv", index=False)
+    df.to_csv(f"{SAVE_PATH_ROOT}/csv/dense/Result_heuristics_{name_model}_{DENSE_NODES}_{K}_all_DENSE.csv", index=False)
+
+    # SAVE_PATH_ROOT = r"C:\Users\btugu\Documents\develop\research\SCNDP\src\extension\heuristics\results"
+
+    # df = pd.DataFrame(records)
+    # df.to_csv(f"{SAVE_PATH_ROOT}/csv/dist/Result_heuristics_{name_model}_{NODES}_{K}_all_DIST_FUNC.csv", index=False)
