@@ -22,7 +22,7 @@ from heuristics.rega import rega
 from heuristics.utils import local_search, epc_mc_deleted
 
 from learning.model import SAGEEdgeProbModel
-from learning.gnn_1_shot import predict
+from learning.gnn_1_shot import gnn_1_shot_predict
 from learning.greedy_gnn import greedy_gnn
 
 # Helper functions
@@ -166,7 +166,7 @@ def run_suite(
 
   # 6) GNN (1-shot)
   def _gnn():
-    return predict(model, fresh_graph(), K, device)
+    return gnn_1_shot_predict(model, fresh_graph(), K, device)
   S, dt = _timecall(_gnn)
   records.append(("GNN (1 shot)", dt, _eval_epc(fresh_graph, S, n_samples_eval)))
 
@@ -419,7 +419,7 @@ def add_common_small(p):
   p.add_argument("--grasp-restarts", type=int, default=3)
   p.add_argument("--grasp-alpha", type=float, default=0.05)
   p.add_argument("--mis-trials", type=int, default=30)
-  p.add_argument("--ckpt-path", type=str, default="/learning/checkpoints/best_model_cla_30_diff.pt")
+  p.add_argument("--ckpt-path", type=str, default="learning/checkpoints/best_model_cla_30.pt")
   p.add_argument("--outdir", type=str, default="/results/csv")
 
 # Common options for large
@@ -439,7 +439,7 @@ def add_common_large(p):
   p.add_argument("--grasp-restarts", type=int, default=3)
   p.add_argument("--grasp-alpha", type=float, default=0.05)
   p.add_argument("--mis-trials", type=int, default=None, help="Override MIS trials (default 50 for large, else 30)")
-  p.add_argument("--ckpt-path", type=str, default="/learning/checkpoints/best_model_cla_30_diff.pt")
+  p.add_argument("--ckpt-path", type=str, default="learning/checkpoints/best_model_cla_30.pt")
   p.add_argument("--outdir", type=str, default="/results/csv")
 
 # uniform

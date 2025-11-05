@@ -1,7 +1,7 @@
 from torch_geometric.nn import SAGEConv
 import torch.nn as nn
 import torch.nn.functional as F
-from .edgeAwareGat import EdgeProbGATConv
+from .edge_aware_gat import EdgeProbGATConv
 
 class SAGEEdgeProbModel(nn.Module):
   def __init__(
