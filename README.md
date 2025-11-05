@@ -17,14 +17,20 @@ All experiments were conducted on **Ubuntu** using **Python 3.12**.
 ## Project Structure
 
 ```text
-├── heuristics/
-│ └── # Implementations of heuristic algorithms
 ├── /results
-│ └── # Contains plots and CSV files of experimental results
-├── heterogeneous_benchmark.py             # Python code for benchmark comparison on heterogeneous probability setting
-├── uniform_benchmark.py                   # Python code for benchmark comparison on uniform probability setting
+│   └── # Contains training, validation, and test set graph instances for learning-based algorithms
+├── /heuristics
+│   └── # Implementations of heuristic algorithms
+├── /learning
+│   ├── /checkpoints
+│   │   └── # Stores the best model checkpoints; new checkpoints will also be saved here
+│   └── # Implementations of learning-based algorithms
+├── /results
+│   └── # Contains plots and CSV files of experimental results
+├── heterogeneous_benchmark.py             # Python script for benchmark comparison under a heterogeneous probability setting
+├── uniform_benchmark.py                   # Python script for benchmark comparison under a uniform probability setting
 ├── requirements.txt                       # Python dependencies
-├── README.md                              
+├── README.md                           
 ```
 
 ## Setup
