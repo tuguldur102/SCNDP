@@ -45,6 +45,11 @@ Create a virtual environment (recommended):
 python -m venv env
 ```
 
+Load to the created virtual environemnt:
+```bash
+cd env
+```
+
 To activate the virtual environment
 
 On Windows:
@@ -93,6 +98,8 @@ python main.py uniform \
 ```
 
 Runs all algorithms on small graphs for multiple p values.
+
+-----
 
 Heterogeneous (random edge probabilities):
 
@@ -145,7 +152,7 @@ After execution, results are automatically saved as CSV files in the project roo
 | `--k` | exact K nodes to remove | derived from `--k-frac` |
 | `--k-frac` | K as fraction of N | 0.1 |
 | `--seed` | random seed | 42 |
-| `--eval-samples` | MC evaluation samples | 100000 |
+| `--eval-samples` | Monte Carlo evaluation samples | 100000 |
 | `--ls-samples` | samples for local search | 10000 |
 | `--ckpt-path` | path to GNN model | see code |
 | `--outdir` | output folder | see code |
@@ -160,9 +167,9 @@ If you use this repository in your research, please cite the following paper:
 @inproceedings{Bayarsaikhan2025,
   author    = {Tuguldur Bayarsaikhan and Altannar Chinchuluun and Ashwin Arulselvan},
   title     = {Heuristic Algorithms for the Stochastic Critical Node Detection Problem},
-  journal   = {submitted},
+  journal   = {Submitted},
   address   = {Ulaanbaatar, Mongolia},
-  pages     = {sumbitted},
+  pages     = {Sumbitted},
   year      = {2025},
 }
 ```
