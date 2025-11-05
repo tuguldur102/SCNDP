@@ -6,9 +6,11 @@ from tqdm import tqdm
 import torch
 import random
 
-from heuristics.greedy_es_variants import greedy_empty_set_celf, greedy_empty_set_celf_local_search
-from heuristics.greedy_mis_variants import greedy_with_mis, greedy_with_mis_local_search, robust_greedy_mis_optimized
+from heuristics.greedy_es_variants import greedy_empty_set_celf
+from heuristics.greedy_mis_variants import greedy_with_mis
 from heuristics.graph_centrality import remove_k_betweenness, remove_k_degree_centrality, remove_k_pagerank_nodes
+from heuristics.grasp import grasp_cndp
+from heuristics.rega import rega  
 from heuristics.utils import local_search, epc_mc_deleted
 
 from learning.model import SAGEEdgeProbModel

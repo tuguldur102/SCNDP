@@ -6,7 +6,7 @@ from torch_geometric.data import Data, Dataset
 from .utils import extract_node_features
 
 class GraphEPCDataset(Dataset):
-  def __init__(self, graphs_dir, labels_dir=None, split="train", aggr='mean'):
+  def __init__(self, graphs_dir: str, labels_dir: str, split:str ="train", aggr:str ='mean'):
     self.graph_paths = glob.glob(os.path.join(graphs_dir, split, '*.pkl'))
     self.labels_dir = None
     self.aggr = aggr
@@ -17,7 +17,7 @@ class GraphEPCDataset(Dataset):
   def __len__(self):
     return len(self.graph_paths)
 
-  def __getitem__(self, idx):
+  def __getitem__(self, idx: int):
     path = self.graph_paths[idx]
     G_nx = pickle.load(open(path, 'rb'))['graph']
 

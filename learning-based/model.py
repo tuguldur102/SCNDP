@@ -6,11 +6,11 @@ from .edgeAwareGat import EdgeProbGATConv
 class SAGEEdgeProbModel(nn.Module):
   def __init__(
     self,
-    in_dim,
-    hidden_dim=256,
-    heads=4,
-    dropout=0.3,
-    aggr='lstm'
+    in_dim: int,
+    hidden_dim: int = 256,
+    heads: int = 4,
+    dropout: float = 0.3,
+    aggr:str = 'lstm'
   ):
     super().__init__()
 

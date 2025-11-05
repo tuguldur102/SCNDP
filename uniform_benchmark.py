@@ -1,8 +1,4 @@
-import argparse
 import time
-from itertools import combinations
-from collections import defaultdict, deque
-
 import numpy as np
 import pandas as pd
 import networkx as nx
@@ -10,10 +6,10 @@ from tqdm import tqdm
 import torch
 import random
 
-from heuristics.greedy_es_variants import greedy_empty_set_celf, greedy_empty_set_celf_local_search
-from heuristics.greedy_mis_variants import greedy_with_mis, greedy_with_mis_local_search, robust_greedy_mis_optimized
+from heuristics.greedy_es_variants import greedy_empty_set_celf
+from heuristics.greedy_mis_variants import greedy_with_mis
 from heuristics.graph_centrality import remove_k_betweenness, remove_k_degree_centrality, remove_k_pagerank_nodes
-from heuristics.grasp import grasp_cndp, grasp_meta
+from heuristics.grasp import grasp_cndp
 from heuristics.rega import rega  
 from heuristics.utils import local_search, epc_mc_deleted
 
@@ -252,9 +248,6 @@ for name_model, G in tqdm(
 
       ('GRASP', t_grasp, epc_grasp),
       ('GRASP + Local Search', t_grasp_ls, epc_grasp_ls),
-
-      ('GRASP + Path Relinking', t_grasp_path, epc_grasp_path),
-      ('GRASP + Path Relinking + Local Search', t_grasp_path_ls, epc_grasp_path_ls),
 
       ('GNN (1 shot)', t_gnn, epc_gnn),
       ('GNN (1 shot) + Local Search', t_gnn_ls, epc_gnn_ls),

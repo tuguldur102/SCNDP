@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.utils import softmax
+from typing import Any
 
 class EdgeProbGATConv(MessagePassing):
   def __init__(
@@ -74,7 +75,15 @@ class EdgeProbGATConv(MessagePassing):
 
     return out
 
-  def message(self, x_j, x_i, edge_prob, index, ptr, size_i):
+  def message(
+      self, 
+      x_j: torch.Tensor, 
+      x_i: torch.Tensor, 
+      edge_prob: Any, 
+      index: int, 
+      ptr: Any, 
+      size_i: Any
+      ):
 
     # concat node reps and edge scalar
     edge_prob = edge_prob.view(-1, 1, 1)

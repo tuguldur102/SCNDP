@@ -3,7 +3,7 @@ from torch_geometric.data import Data
 import networkx as nx
 from collections import defaultdict, deque
 
-def extract_node_features(G):
+def extract_node_features(G: nx.Graph) -> torch.ones:
   """
   Compute per-node structural features for DGL input.
   Returns: torch.FloatTensor of shape [num_nodes, 11]
