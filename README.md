@@ -62,18 +62,87 @@ pip install -r requirements.txt
 
 The repository provides two benchmark scripts corresponding to the edge probability settings used in the paper:
 
-- Uniform probability setting:
 ```bash
-python uniform_benchmark.py
+python main.py <task> [options]
 ```
 
-- Heterogeneous probability setting:
+- `uniform` – small graphs, fixed edge probability p
+
+- `heterogeneous` – small graphs, edge probs from distributions
+
+- `large_with_ls` – large graphs, with local search
+
+- `large_without_ls` – large graphs, without local search
+
+### Examples
+
+Uniform (fixed p sweep):
+
 ```bash
-python heterogeneous_benchmark.py
+python main.py uniform \
+  --nodes 100 \
+  --models ER,BA,SW \
+  --p-start 0.0 --p-stop 1.0 --p-step 0.1 \
+  --outdir ./results
 ```
 
-Each script performs benchmark comparisons on 100-node graphs with a deletion budget K = 10.
+Runs all algorithms on small graphs for multiple p values.
+
+Heterogeneous (random edge probabilities):
+
+```bash
+python main.py heterogeneous \
+  --nodes 100 \
+  --models ER,BA \
+  --dists uniform,normal,beta \
+  --outdir ./results
+```
+
+Draws each edge probability from the given distributions.
+
+-----
+
+The algorithms including Greedy, Greedy with MIS, Greedy GNN and GNN (1-shot) are used for benchmark evaluation for larger graph instances.
+
+Large (with local search):
+
+```bash
+python main.py large_with_ls \
+  --nodes-list 200,300,500 \
+  --p-list 0.1,0.3,0.5 \
+  --outdir ./results
+```
+
+Larger graphs with local search procedure.
+
+-----
+
+Large (without local search)
+
+```bash
+python main.py large_without_ls \
+  --nodes-list 200,300,500 \
+  --p-list 0.1,0.3,0.5 \
+  --outdir ./results
+```
+
+Larger graphs without local search procedure.
+
+-----
+
 After execution, results are automatically saved as CSV files in the project root directory.
+
+### Common Options
+
+| Flag | Description | Default |
+|------|--------------|----------|
+| `--k` | exact K nodes to remove | derived from `--k-frac` |
+| `--k-frac` | K as fraction of N | 0.1 |
+| `--seed` | random seed | 42 |
+| `--eval-samples` | MC evaluation samples | 100000 |
+| `--ls-samples` | samples for local search | 10000 |
+| `--ckpt-path` | path to GNN model | see code |
+| `--outdir` | output folder | see code |
 
 ## Question/Need Support?
 If you have any questions or encounter issues, please open an issue. We’ll do our best to help.
@@ -84,12 +153,11 @@ If you use this repository in your research, please cite the following paper:
 ```bibtex
 @inproceedings{Bayarsaikhan2025,
   author    = {Tuguldur Bayarsaikhan and Altannar Chinchuluun and Ashwin Arulselvan},
-  title     = {A Maximal Independent Set Heuristic for the Stochastic Critical Node Detection Problem},
-  booktitle = {Proceedings of the 19th International Conference on Algorithmic Aspects in Information and Management (AAIM 2025)},
+  title     = {Heuristic Algorithms for the Stochastic Critical Node Detection Problem},
+  journal   = {submitted},
   address   = {Ulaanbaatar, Mongolia},
-  pages     = {accepted},
+  pages     = {sumbitted},
   year      = {2025},
-  publisher = {Lecture Notes in Computer Science, Springer},
 }
 ```
 
