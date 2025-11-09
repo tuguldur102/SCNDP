@@ -6,7 +6,6 @@ This repository contains the source code accompanying the paper
 It includes implementation of the **Rounding the Expected Graph Algorithm (REGA)** from **"Dinh T. N, and Thai. M. T (2015) Assessing attack vulnerability in networks with uncertainty. INFOCOM"** and our proposed heuristic methods:
 - Greedy algorithm
 - Greedy with Maximal Independent Set (MIS)
-- Greedy randomized adaptive search procedures (GRASP) from **"Feo, Thomas A. and Resende, Mauricio G. C (1995) Greedy randomized adaptive search procedures. Journal of Global Optimization"**
 
 And learning-based methods:
 - Greedy Graph Neural Network (GNN)
@@ -122,7 +121,7 @@ Large (with local search):
 ```bash
 python main.py large_with_ls \
   --nodes-list 200,300,500 \
-  --p-list 0.1,0.3,0.5 \
+  --p-list 0.1,0.2,0.3,0.4,0.5,0.7 \
   --outdir ./results
 ```
 
@@ -135,7 +134,7 @@ Large (without local search)
 ```bash
 python main.py large_without_ls \
   --nodes-list 200,300,500 \
-  --p-list 0.1,0.3,0.5 \
+  --p-list 0.1,0.3,0.5,0.7,0.9 \
   --outdir ./results
 ```
 
@@ -164,8 +163,8 @@ If you have any questions or encounter issues, please open an issue. We’ll do 
 If you use this repository in your research, please cite the following paper:
 
 ```bibtex
-@inproceedings{Bayarsaikhan2025,
-  author    = {Tuguldur Bayarsaikhan and Altannar Chinchuluun and Ashwin Arulselvan},
+@inproceedings{TuguldurBayarsaikhan2025,
+  author    = {Tuguldur Bayarsaikhan, Altannar Chinchuluun and Ashwin Arulselvan},
   title     = {Heuristic Algorithms for the Stochastic Critical Node Detection Problem},
   journal   = {Submitted},
   address   = {Ulaanbaatar, Mongolia},
