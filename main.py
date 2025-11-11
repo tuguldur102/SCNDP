@@ -11,13 +11,12 @@ import torch
 import random
 
 from heuristics.greedy_es_variants import greedy_empty_set_celf
-from heuristics.greedy_mis_variants import greedy_with_mis
+from heuristics.greedy_mis_variants import greedy_epc_mis_celf
 from heuristics.graph_centrality import (
   remove_k_betweenness,
   remove_k_degree_centrality,
   remove_k_pagerank_nodes,
 )
-from heuristics.grasp import grasp_cndp
 from heuristics.rega import rega
 from heuristics.utils import local_search, epc_mc_deleted
 
@@ -124,9 +123,9 @@ def run_suite(
     S_ls, dt = _timecall(lambda: local_search(fresh_graph(), S, num_samples=n_samples_ls))
     records.append(("Greedy + Local Search", dt, _eval_epc(fresh_graph, S_ls, n_samples_eval)))
 
-  # 3) Greedy MIS
+  # 3) Greedy MIS (CELF)
   def _greedy_mis():
-    S_, _ = greedy_with_mis(fresh_graph(), K, num_trails=mis_trials, num_samples=n_samples_ls)
+    S_, _ = greedy_epc_mis_celf(fresh_graph(), K, num_trails=mis_trials, num_samples=n_samples_ls)
     return S_
   S, dt = _timecall(_greedy_mis)
   records.append(("Greedy with MIS", dt, _eval_epc(fresh_graph, S, n_samples_eval)))
@@ -148,23 +147,7 @@ def run_suite(
       S_ls, dt = _timecall(lambda: local_search(fresh_graph(), S, n_samples_ls))
       records.append(("REGA + Local Search", dt, _eval_epc(fresh_graph, S_ls, n_samples_eval)))
 
-  # 5) GRASP
-  if include_grasp:
-    def _grasp():
-      S_, _ = grasp_cndp(
-        fresh_graph(), K, num_samples=n_samples_ls,
-        alpha=grasp_alpha, restarts=grasp_restarts, use_tqdm=False
-      )
-      return S_
-    S, dt = _timecall(_grasp)
-    records.append(("GRASP", dt, _eval_epc(fresh_graph, S, n_samples_eval)))
-
-    if with_ls:
-      S, _ = _timecall(_grasp)
-      S_ls, dt = _timecall(lambda: local_search(fresh_graph(), S, n_samples_ls))
-      records.append(("GRASP + Local Search", dt, _eval_epc(fresh_graph, S_ls, n_samples_eval)))
-
-  # 6) GNN (1-shot)
+  # 5) GNN (1-shot)
   def _gnn():
     return gnn_1_shot_predict(model, fresh_graph(), K, device)
   S, dt = _timecall(_gnn)
@@ -175,7 +158,7 @@ def run_suite(
     S_ls, dt = _timecall(lambda: local_search(fresh_graph(), S, n_samples_ls))
     records.append(("GNN (1 shot) + Local Search", dt, _eval_epc(fresh_graph, S_ls, n_samples_eval)))
 
-  # 7) Greedy-GNN
+  # 6) Greedy-GNN
   def _greedy_gnn_call():
     return greedy_gnn(model, fresh_graph(), K, device)
   S, dt = _timecall(_greedy_gnn_call)
@@ -416,8 +399,6 @@ def add_common_small(p):
   p.add_argument("--seed", type=int, default=42)
   p.add_argument("--eval-samples", type=int, default=100_000)
   p.add_argument("--ls-samples", type=int, default=10_000)
-  p.add_argument("--grasp-restarts", type=int, default=3)
-  p.add_argument("--grasp-alpha", type=float, default=0.05)
   p.add_argument("--mis-trials", type=int, default=30)
   p.add_argument("--ckpt-path", type=str, default="learning/checkpoints/best_model_cla_30.pt")
   p.add_argument("--outdir", type=str, default="/results/csv")
@@ -436,8 +417,6 @@ def add_common_large(p):
   p.add_argument("--seed", type=int, default=42)
   p.add_argument("--eval-samples", type=int, default=100_000)
   p.add_argument("--ls-samples", type=int, default=10_000)
-  p.add_argument("--grasp-restarts", type=int, default=3)
-  p.add_argument("--grasp-alpha", type=float, default=0.05)
   p.add_argument("--mis-trials", type=int, default=None, help="Override MIS trials (default 50 for large, else 30)")
   p.add_argument("--ckpt-path", type=str, default="learning/checkpoints/best_model_cla_30.pt")
   p.add_argument("--outdir", type=str, default="/results/csv")
