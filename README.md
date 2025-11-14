@@ -1,7 +1,7 @@
-# Algorithms for the Stochastic Critical Node Detection Problem
+# Heuristic Algorithms for the Stochastic Critical Node Detection Problem
 
 This repository contains the source code accompanying the paper  
-**“Algorithms for the Stochastic Critical Node Detection Problem.”**
+**“Heuristic Algorithms for the Stochastic Critical Node Detection Problem.”**
 
 It includes implementation of the **Rounding the Expected Graph Algorithm (REGA)** from **"Dinh T. N, and Thai. M. T (2015) Assessing attack vulnerability in networks with uncertainty. INFOCOM"** and our proposed heuristic methods:
 - Greedy algorithm
@@ -164,8 +164,8 @@ If you use this repository in your research, please cite the following paper:
 
 ```bibtex
 @inproceedings{TuguldurBayarsaikhan2025,
-  author    = {Tuguldur Bayarsaikhan, Altannar Chinchuluun and Ashwin Arulselvan},
-  title     = {Algorithms for the Stochastic Critical Node Detection Problem},
+  author    = {Tuguldur Bayarsaikhan, Altannar Chinchuluun, Ashwin Arulselvan and Jun Pei},
+  title     = {Heuristic Algorithms for the Stochastic Critical Node Detection Problem},
   journal   = {Submitted},
   address   = {Ulaanbaatar, Mongolia},
   pages     = {Sumbitted},
