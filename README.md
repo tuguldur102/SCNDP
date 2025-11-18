@@ -164,10 +164,9 @@ If you use this repository in your research, please cite the following paper:
 
 ```bibtex
 @inproceedings{TuguldurBayarsaikhan2025,
-  author    = {Tuguldur Bayarsaikhan, Altannar Chinchuluun, Ashwin Arulselvan and Jun Pei},
+  author    = {Tuguldur Bayarsaikhan, Altannar Chinchuluun, Ashwin Arulselvan and Panos M. Pardalos},
   title     = {Heuristic Algorithms for the Stochastic Critical Node Detection Problem},
   journal   = {Submitted},
-  address   = {Ulaanbaatar, Mongolia},
   pages     = {Sumbitted},
   year      = {2025},
 }
